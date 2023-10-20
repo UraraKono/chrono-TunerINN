@@ -25,12 +25,15 @@ import pychrono.vehicle as veh
 import pychrono.irrlicht as irr
 import math as m
 import numpy as np
+import matplotlib.pyplot as plt
 
 # =============================================================================
+# Interactive plot
+plot_ion = False
 
 # Assume these are the constant returns from the MPC solved just once and 
 target_acc = 0.5 # [m/s**2]
-target_steer_speed = 0.2 # [rad/s]
+target_steer_speed = 0.0 # [rad/s]
 
 def main():
     #print("Copyright (c) 2017 projectchrono.org\nChrono version: ", CHRONO_VERSION , "\n\n")
@@ -52,6 +55,14 @@ def main():
     my_hmmwv.SetSteeringVisualizationType(steering_vis_type)
     my_hmmwv.SetWheelVisualizationType(wheel_vis_type)
     my_hmmwv.SetTireVisualizationType(tire_vis_type)
+
+    # my_vehicle = my_hmmwv.GetVehicle()
+    # print(my_vehicle.GetMaxSteeringAngle())
+    my_hmmwv_ChWheeledVehicle = my_hmmwv.GetVehicle()
+    max_steer = my_hmmwv_ChWheeledVehicle.GetMaxSteeringAngle()
+    print('Max Steering', max_steer) #0.5276130328778859 rad = about 30 degrees
+    # print('GetSteerings',my_hmmwv_ChWheeledVehicle.GetSteerings())
+    # print('GetSteering',my_hmmwv_ChWheeledVehicle.GetSteering(0).GetSteeringLink())
 
     # Create the terrain
 
@@ -110,11 +121,41 @@ def main():
     # Simulation loop
     my_hmmwv.GetVehicle().EnableRealtime(True)
 
+    # Plot the speed and steering with matplotlib
+    if plot_ion:
+        plt.ion()
+    fig, ax = plt.subplots(2,1)
+    ax[0].set_title('Speed')
+    # ax[0].set_xlabel('Time [s]')
+    ax[0].set_ylabel('Speed [m/s]')
+    ax[1].set_title('Steering')
+    ax[1].set_xlabel('Time [s]')
+    ax[1].set_ylabel('Steering [degrees]')
+    t = []
+    speed = []
+    speed_ref = []
+    steering = []
+
     while vis.Run() :
         target_speed += target_acc*step_size
-        steering_output += target_steer_speed/(np.pi/2)*step_size
+        steering_output += target_steer_speed/(max_steer)*step_size #open loop
 
         time = my_hmmwv.GetSystem().GetChTime()
+
+        t.append(time)
+        speed.append(speedPID.GetCurrentSpeed())
+        speed_ref.append(target_speed)
+        steering.append(steering_output*max_steer*180/np.pi) # [-1,1]*max_steer*180/pi
+
+        if plot_ion:
+            # Update the plot
+            ax[0].plot(t, speed, 'r')
+            ax[0].plot(t, speed_ref, 'k')
+            ax[1].plot(t, steering, 'r')
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            plt.show(block=False) #plt.show(block=True) to stop the simulation
+
 
         # End simulation
         if (time >= t_end):
@@ -152,8 +193,14 @@ def main():
         my_hmmwv.Advance(step_size)
         vis.Advance(step_size)
 
-        print('current speed', speedPID.GetCurrentSpeed(), 'speed command', target_speed)
-        
+        # print('current speed', speedPID.GetCurrentSpeed(), 'speed command', target_speed)
+        # print('', my_hmmwv.GetSte)
+
+    if not plot_ion:
+        ax[0].plot(t, speed, 'r')
+        ax[0].plot(t, speed_ref, 'k')
+        ax[1].plot(t, steering, 'r')
+        plt.show()
 
     return 0
 
@@ -197,7 +244,7 @@ step_size = 2e-3;
 tire_step_size = 1e-3;
 
 # Simulation end time
-t_end = 100;
+t_end = 20;
 
 
 main()
