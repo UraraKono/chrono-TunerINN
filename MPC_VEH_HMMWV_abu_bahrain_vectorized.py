@@ -163,9 +163,9 @@ def init_terrain(friction, patch_coords, waypoints):
     
     # Set color of patch based on friction value
     for i, patch in enumerate(patches):
-        print(friction[i])
+        # print(friction[i])
         RGB_value = 1 - (friction[i] - 0.4)
-        print(RGB_value, friction[i])
+        # print(RGB_value, friction[i])
         patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
 
     # for patch in patches:
@@ -281,8 +281,8 @@ def get_vehicle_state(vehicle):
     # acc = vehicle.GetVehicle().GetAcc()
     # print("acc", acc)
 
-    steering_angle = vehicle.GetVehicle().GetMaxSteeringAngle()
-    # print("max steering angle:", steering_angle)
+    max_steering_angle = vehicle.GetVehicle().GetMaxSteeringAngle()
+    # print("max steering angle:", max_steering_angle)
 
     # print("steering angle", driver_inputs.m_steering)
 
@@ -315,7 +315,7 @@ def get_vehicle_state(vehicle):
     # my_vehicle = veh.ChWheeledVehicle("my_vehicle")
     my_driver = veh.ChDriver(vehicle.GetVehicle())
     throttle = my_driver.GetThrottle()
-    steering = my_driver.GetSteering()
+    steering = my_driver.GetSteering() # steering input [-1,+1]
     braking = my_driver.GetBraking()
 
     inputs = my_driver.GetInputs()
@@ -333,7 +333,7 @@ def get_vehicle_state(vehicle):
                               yaw_angle,  # yaw angle
                               vy,  # vy
                               yaw_rate,  # yaw rate
-                              steering_angle,  # steering angle
+                              steering*max_steering_angle,  # steering angle
                             ])
     # print("vehicle state:", vehicle_state)
 
@@ -347,13 +347,15 @@ if __name__ == '__main__':
     map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
     use_dyn_friction = False
     gp_mpc_type = 'frenet'  # cartesian, frenet
-    control_step = 100.0  # ms
+    control_frequency = 100.0  # ms
+    control_step = control_frequency/(step_size*1000)  # control step in sim steps
     render_every = 30  # render graphics every n sim steps
     constant_speed = True
     constant_friction = 0.7
     number_of_laps = 20
     SAVE_MODEL = True
     t_end = 20 
+
 
 
     # Creating the single-track Motion planner and Controller
@@ -394,13 +396,12 @@ if __name__ == '__main__':
                                           [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
                                           [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
 
-        print(centerline_descriptor)
-        print(centerline_descriptor.shape)
+        # print(centerline_descriptor)
+        # print(centerline_descriptor.shape)
 
         track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=5.0)
         waypoints = track.get_reference_trajectory()
-        # print('waypoints')
-        # print(waypoints)
+        print('waypoints\n',waypoints.shape)
 
         # Convert waypoints to ChBezierCurve
         curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.6) for waypoint in waypoints]
@@ -422,6 +423,7 @@ if __name__ == '__main__':
     terrain, viz_patch = init_terrain(friction, patch_coords, waypoints)
 
     path = curve
+    print("path\n", path)
 
     npoints = path.getNumPoints()
 
@@ -449,18 +451,32 @@ if __name__ == '__main__':
     # What's the difference between path_asset and mpc_path_asset?
     
     # Create the PID lateral controller
-    steeringPID = veh.ChPathSteeringController(path)
-    steeringPID.SetLookAheadDistance(5)
+    # steeringPID = veh.ChPathSteeringController(path)
+    steeringPID = veh.ChPathSteeringController(mpc_curve) 
     steeringPID.SetGains(0.8, 0, 0)
     steeringPID.Reset(my_hmmwv.GetVehicle())
+
+    speedPID = veh.ChSpeedController()
+    Kp = 0.6
+    Ki = 0.2
+    Kd = 0.3
+    speedPID.SetGains(Kp, Ki, Kd)
+    speedPID.Reset(my_hmmwv.GetVehicle())
 
     # Create the vehicle Irrlicht application
     vis = init_irrlicht_vis(my_hmmwv)
 
 
-    # Visualization of controller points (target)
+    # # Visualization of controller points (target)
+    # ballT = vis.GetSceneManager().addSphereSceneNode(0.1)
+    # ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+
+    # Visualization of controller points (sentinel & target)
+    ballS = vis.GetSceneManager().addSphereSceneNode(0.1)
     ballT = vis.GetSceneManager().addSphereSceneNode(0.1)
+    ballS.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 255, 0, 0)
     ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+
 
     # ---------------
     # Simulation loop
@@ -491,8 +507,11 @@ if __name__ == '__main__':
     planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=MPCConfigEXT()), waypoints=waypoints,
                                     config=MPCConfigEXT()) #path_follow_mpc.py
     
-    u_steer_speed = []
+    u_acc = []
+    # u_steer_speed = [] #steering speed from MPC is not used. ox/oy are used instead
     t = []
+    speed = []
+    speed_ref = []
 
     while lap_counter < num_laps:
         # Render scene
@@ -510,11 +529,17 @@ if __name__ == '__main__':
         driver_inputs.m_steering = np.clip(steeringPID_output, -1.0, +1.0)
         driver_inputs.m_throttle = throttle_value
         driver_inputs.m_braking = 0.0
-        t.append(time)
+
+        # # Update sentinel and target location markers for the path-follower controller.
+        # pT = steeringPID.GetTargetLocation()
+        # ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
 
         # Update sentinel and target location markers for the path-follower controller.
+        pS = steeringPID.GetSentinelLocation()
         pT = steeringPID.GetTargetLocation()
+        ballS.setPosition(chronoirr.vector3df(pS.x, pS.y, pS.z))
         ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+    
 
         # Update modules (process inputs from other modules)
         terrain.Synchronize(time)
@@ -524,21 +549,32 @@ if __name__ == '__main__':
 
         vehicle_state = get_vehicle_state(my_hmmwv)
         
-        u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
-            vehicle_state)
-        u[0] = u[0] / vehicle_params.MASS  # Force to acceleration
-        u_steer_speed.append(u[1])
-        print("mpc ref path x", mpc_ref_path_x)
-        print("mpc ref path y", mpc_ref_path_y)
-        print("mpc pred x", mpc_pred_x)
-        print("mpc pred y", mpc_pred_y)
-        print("mpc ox", mpc_ox)
-        print("mpc oy", mpc_oy)
-        
-        # Update mpc_path_asset with mpc_pred
-        mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(MPC_params.TK + 1)]
-        mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
-        mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+        # Solve MPC every control_step
+        if (step_number % (control_step) == 0) : 
+            print("step number", step_number)
+            u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
+                vehicle_state)
+            u[0] = u[0] / vehicle_params.MASS  # Force to acceleration
+            u_acc.append(u[0])
+            # u_steer_speed.append(u[1])
+            t.append(time)
+            print("u", u)
+            print("mpc ref path x", mpc_ref_path_x) #list length of 16 (TK + 1)
+            print("mpc ref path y", mpc_ref_path_y)
+            print("mpc pred x", mpc_pred_x)
+            print("mpc pred y", mpc_pred_y)
+            print("mpc ox", mpc_ox)
+            print("mpc oy", mpc_oy)
+            
+            # Update mpc_path_asset with mpc_pred
+            mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(MPC_params.TK + 1)]
+            mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
+            mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+
+            steeringPID = veh.ChPathSteeringController(mpc_curve) 
+            steeringPID.SetLookAheadDistance(5)
+            steeringPID.SetGains(0.8, 0, 0)
+            steeringPID.Reset(my_hmmwv.GetVehicle())
 
         # Advance simulation for one timestep for all modules
         steeringPID_output = steeringPID.Advance(my_hmmwv.GetVehicle(), step_size)

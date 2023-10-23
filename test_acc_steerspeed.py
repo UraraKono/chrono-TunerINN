@@ -33,7 +33,7 @@ plot_ion = False
 
 # Assume these are the constant returns from the MPC solved just once and 
 target_acc = 0.5 # [m/s**2]
-target_steer_speed = 0.1 # [rad/s]
+target_steer_speed = 0.1 # [rad/s] 5.73 deg/s
 
 def main():
     #print("Copyright (c) 2017 projectchrono.org\nChrono version: ", CHRONO_VERSION , "\n\n")

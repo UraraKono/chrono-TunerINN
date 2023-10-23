@@ -134,8 +134,8 @@ class STMPCPlanner:
             waypoints (numpy.ndarray [N x 4], optional): list of dynamic waypoints to track, columns are [x, y, velocity, heading]
 
         Returns:
-            speed (float): commanded vehicle longitudinal velocity
-            steering_angle (float):  commanded vehicle steering angle
+            acceleration (float): commanded vehicle longitudinal acceleration
+            steering_speed (float):  commanded vehicle steering speed
 
         TODO: implement switching between different controllers here
         """
@@ -589,9 +589,12 @@ class STMPCPlanner:
             self.states_output = states_output
             self.input_o = input_o
 
+        # print("input_o", input_o) # (2, 15)
+        # print("states_output", states_output) # (7, 16)
+
         # Steering Output: First entry of the MPC steering angle output vector in degree
-        u = self.input_o[:, 0]
-        ox = states_output[0]
-        oy = states_output[1]
+        u = self.input_o[:, 0] # (2,) taking out just the first control input
+        ox = states_output[0] # (16,) taking out just x
+        oy = states_output[1] # (16,) taking out just y
         # o_input[:, 0]
         return u, ref_path[0], ref_path[1], state_predict[0], state_predict[1], ox, oy
