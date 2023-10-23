@@ -347,14 +347,14 @@ if __name__ == '__main__':
     map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
     use_dyn_friction = False
     gp_mpc_type = 'frenet'  # cartesian, frenet
-    control_frequency = 100.0  # ms
-    control_step = control_frequency/(step_size*1000)  # control step in sim steps
+    control_period = 100.0  # ms
+    control_step = control_period/(step_size*1000)  # control step in sim steps
     render_every = 30  # render graphics every n sim steps
     constant_speed = True
     constant_friction = 0.7
     number_of_laps = 20
     SAVE_MODEL = True
-    t_end = 20 
+    t_end = 40
 
 
 
@@ -509,11 +509,16 @@ if __name__ == '__main__':
     
     u_acc = []
     # u_steer_speed = [] #steering speed from MPC is not used. ox/oy are used instead
-    t = []
+    t_controlperiod = [] # time list every control_period
+    t_stepsize = [] # time list every step_size
     speed = []
     speed_ref = []
+    speedPID_output = 0
+    target_speed = 0
+    target_acc = 0
 
     while lap_counter < num_laps:
+        target_speed += target_acc*step_size
         # Render scene
         if (step_number % (render_steps) == 0) :
             vis.BeginScene()
@@ -546,25 +551,29 @@ if __name__ == '__main__':
         my_hmmwv.Synchronize(time, driver_inputs, terrain)
         vis.Synchronize("", driver_inputs)
         
-
         vehicle_state = get_vehicle_state(my_hmmwv)
+        t_stepsize.append(time)
+        speed.append(speedPID.GetCurrentSpeed())
+        speed_ref.append(target_speed)
         
         # Solve MPC every control_step
         if (step_number % (control_step) == 0) : 
-            print("step number", step_number)
+            # print("step number", step_number)
             u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
                 vehicle_state)
             u[0] = u[0] / vehicle_params.MASS  # Force to acceleration
+            target_acc = u[0]
+            target_speed = speedPID.GetCurrentSpeed() + target_acc*control_period/1000
             u_acc.append(u[0])
             # u_steer_speed.append(u[1])
-            t.append(time)
-            print("u", u)
-            print("mpc ref path x", mpc_ref_path_x) #list length of 16 (TK + 1)
-            print("mpc ref path y", mpc_ref_path_y)
-            print("mpc pred x", mpc_pred_x)
-            print("mpc pred y", mpc_pred_y)
-            print("mpc ox", mpc_ox)
-            print("mpc oy", mpc_oy)
+            t_controlperiod.append(time)
+            # print("u", u)
+            # print("mpc ref path x", mpc_ref_path_x) #list length of 16 (TK + 1)
+            # print("mpc ref path y", mpc_ref_path_y)
+            # print("mpc pred x", mpc_pred_x)
+            # print("mpc pred y", mpc_pred_y)
+            # print("mpc ox", mpc_ox)
+            # print("mpc oy", mpc_oy)
             
             # Update mpc_path_asset with mpc_pred
             mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(MPC_params.TK + 1)]
@@ -577,6 +586,7 @@ if __name__ == '__main__':
             steeringPID.Reset(my_hmmwv.GetVehicle())
 
         # Advance simulation for one timestep for all modules
+        speedPID_output = speedPID.Advance(my_hmmwv.GetVehicle(), target_speed, step_size)
         steeringPID_output = steeringPID.Advance(my_hmmwv.GetVehicle(), step_size)
         terrain.Advance(step_size)
         my_hmmwv.Advance(step_size)
@@ -594,9 +604,12 @@ if __name__ == '__main__':
             break
 
     plt.figure()
-    plt.plot(t, u_steer_speed)
-    plt.xlabel('time [s]')
-    plt.ylabel('steering speed [rad/s]')
+    plt.plot(t_stepsize, speed, label="speed")
+    plt.plot(t_stepsize, speed_ref, label="speed ref")
+    plt.xlabel("time [s]")
+    plt.ylabel(" longitudinal speed [m/s]")
+    plt.legend()
+    plt.savefig("longitudinal_speed.png")
     plt.show()
 
     
