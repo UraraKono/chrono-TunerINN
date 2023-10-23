@@ -33,7 +33,7 @@ plot_ion = False
 
 # Assume these are the constant returns from the MPC solved just once and 
 target_acc = 0.5 # [m/s**2]
-target_steer_speed = 0.0 # [rad/s]
+target_steer_speed = 0.1 # [rad/s]
 
 def main():
     #print("Copyright (c) 2017 projectchrono.org\nChrono version: ", CHRONO_VERSION , "\n\n")
@@ -88,12 +88,15 @@ def main():
     # path = veh.DoubleLaneChangePath(initLoc, 13.5, 4.0, 11.0, 50.0, True)
     # driver = veh.ChPathFollowerDriver(my_hmmwv.GetVehicle(), path, "my_path", target_speed)
     # driver.GetSteeringController().SetLookAheadDistance(5)
-    # driver.GetSteeringController().SetGains(0.8, 0, 0)
+    # driver.GetSteeringController().SetGains(0.5, 0, 0) #0.8, 0, 0
     # driver.GetSpeedController().SetGains(0.4, 0, 0)
     # driver.Initialize()
 
     speedPID = veh.ChSpeedController()
-    speedPID.SetGains(0.4, 0, 0)
+    Kp = 0.6
+    Ki = 0.2
+    Kd = 0.3
+    speedPID.SetGains(Kp, Ki, Kd)
     speedPID.Reset(my_hmmwv.GetVehicle())
 
     # Create the vehicle Irrlicht interface
@@ -167,10 +170,10 @@ def main():
         # ballS.setPosition(irr.vector3df(pS.x, pS.y, pS.z))
         # ballT.setPosition(irr.vector3df(pT.x, pT.y, pT.z))
 
-        # Draw scene
-        vis.BeginScene()
-        vis.Render()
-        vis.EndScene()
+        # # Draw scene
+        # vis.BeginScene()
+        # vis.Render()
+        # vis.EndScene()
 
         # Get driver inputs
         # driver_inputs = driver.GetInputs()
@@ -200,6 +203,7 @@ def main():
         ax[0].plot(t, speed, 'r')
         ax[0].plot(t, speed_ref, 'k')
         ax[1].plot(t, steering, 'r')
+        plt.savefig('./PID_tuning/P'+str(Kp)+'I'+str(Ki)+'D'+str(Kd)+'.png')
         plt.show()
 
     return 0
@@ -240,11 +244,11 @@ tire_model = veh.TireModelType_TMEASY
 contact_method = chrono.ChContactMethod_SMC
 
 # Simulation step sizes
-step_size = 2e-3;
-tire_step_size = 1e-3;
+step_size = 2e-3
+tire_step_size = 1e-3
 
 # Simulation end time
-t_end = 20;
+t_end = 15 #20
 
 
 main()
