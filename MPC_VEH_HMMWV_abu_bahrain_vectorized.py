@@ -19,6 +19,9 @@
 # Y pointing to the left.
 #
 # Apply the MPC solution (acceleration and steering speed) to the vehicle
+# ChPathSteeringController is used to follow the path. 
+# ox, oy are fed into the controller. The steering speed from MPC is neglected
+# ChSpeedController is used to enforce the acceleration from MPC
 # =============================================================================
 
 import pychrono as chrono
