@@ -39,6 +39,7 @@ from argparse import Namespace
 from regulators.pure_pursuit import *
 from regulators.path_follow_mpc import *
 from models.extended_kinematic import ExtendedKinematicModel
+from models.GP_model_single import GPSingleModel
 from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
@@ -350,8 +351,6 @@ if __name__ == '__main__':
     map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
     use_dyn_friction = False
     gp_mpc_type = 'frenet'  # cartesian, frenet
-    control_period = 100.0  # ms
-    control_step = control_period/(step_size*1000)  # control step in sim steps
     render_every = 30  # render graphics every n sim steps
     constant_speed = True
     constant_friction = 0.7
@@ -427,7 +426,7 @@ if __name__ == '__main__':
 
     path = curve
     print("path\n", path)
-
+ 
     npoints = path.getNumPoints()
 
     path_asset = chrono.ChLineShape()
@@ -455,7 +454,8 @@ if __name__ == '__main__':
     
     # Create the PID lateral controller
     # steeringPID = veh.ChPathSteeringController(path)
-    steeringPID = veh.ChPathSteeringController(mpc_curve) 
+    steeringPID = veh.ChPathSteeringController(mpc_curve)
+    steeringPID.SetLookAheadDistance(5) 
     steeringPID.SetGains(0.8, 0, 0)
     steeringPID.Reset(my_hmmwv.GetVehicle())
 
@@ -507,8 +507,25 @@ if __name__ == '__main__':
 
     vehicle_params = get_vehicle_parameters(my_hmmwv)
 
-    planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=MPCConfigEXT()), waypoints=waypoints,
-                                    config=MPCConfigEXT()) #path_follow_mpc.py
+    correct_config = MPCConfigEXT()
+    correct_config.LENGTH = vehicle_params.LENGTH
+    correct_config.WIDTH = vehicle_params.WIDTH
+    correct_config.LR = vehicle_params.LR
+    correct_config.LF = vehicle_params.LF
+    correct_config.WB = vehicle_params.WB
+    correct_config.MIN_STEER = vehicle_params.MIN_STEER
+    correct_config.MAX_STEER = vehicle_params.MAX_STEER
+    correct_config.MAX_STEER_V = vehicle_params.MAX_STEER_V
+    correct_config.MAX_SPEED = vehicle_params.MAX_SPEED
+    correct_config.MIN_SPEED = vehicle_params.MIN_SPEED
+    correct_config.MAX_ACCEL = vehicle_params.MAX_ACCEL
+    correct_config.MAX_DECEL = vehicle_params.MAX_DECEL
+    correct_config.MASS = vehicle_params.MASS    
+
+    planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=correct_config), waypoints=waypoints,
+                                    config=correct_config) #path_follow_mpc.py
+    
+    control_step = planner_ekin_mpc.config.DTK/step_size  # control step in sim steps
     
     u_acc = []
     # u_steer_speed = [] #steering speed from MPC is not used. ox/oy are used instead
@@ -521,7 +538,7 @@ if __name__ == '__main__':
     target_acc = 0
 
     while lap_counter < num_laps:
-        target_speed += target_acc*step_size
+        # target_speed += target_acc*step_size
         # Render scene
         if (step_number % (render_steps) == 0) :
             vis.BeginScene()
@@ -566,7 +583,8 @@ if __name__ == '__main__':
                 vehicle_state)
             u[0] = u[0] / vehicle_params.MASS  # Force to acceleration
             target_acc = u[0]
-            target_speed = speedPID.GetCurrentSpeed() + target_acc*control_period/1000
+            target_speed = speedPID.GetCurrentSpeed() + target_acc*planner_ekin_mpc.config.DTK
+            # target_speed = speedPID.GetCurrentSpeed()
             u_acc.append(u[0])
             # u_steer_speed.append(u[1])
             t_controlperiod.append(time)
@@ -575,8 +593,8 @@ if __name__ == '__main__':
             # print("mpc ref path y", mpc_ref_path_y)
             # print("mpc pred x", mpc_pred_x)
             # print("mpc pred y", mpc_pred_y)
-            # print("mpc ox", mpc_ox)
-            # print("mpc oy", mpc_oy)
+            print("mpc ox", mpc_ox)
+            print("mpc oy", mpc_oy)
             
             # Update mpc_path_asset with mpc_pred
             mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(MPC_params.TK + 1)]
@@ -606,13 +624,36 @@ if __name__ == '__main__':
         if time > t_end:
             break
 
-    plt.figure()
-    plt.plot(t_stepsize, speed, label="speed")
-    plt.plot(t_stepsize, speed_ref, label="speed ref")
-    plt.xlabel("time [s]")
-    plt.ylabel(" longitudinal speed [m/s]")
-    plt.legend()
-    plt.savefig("longitudinal_speed.png")
+    # plt.figure()
+    # plt.plot(t_stepsize, speed, label="speed")
+    # plt.plot(t_stepsize, speed_ref, label="speed ref")
+    # plt.xlabel("time [s]")
+    # plt.ylabel(" longitudinal speed [m/s]")
+    # plt.legend()
+    # plt.savefig("longitudinal_speed.png")
+
+    # plt.figure()
+    # plt.plot(t_controlperiod, u_acc, label="acceleration") 
+    # plt.xlabel("time [s]")
+    # plt.ylabel("acceleration [m/s^2]")
+    # plt.legend()
+    # plt.savefig("acceleration.png")
+
+    # plt.show()
+
+    fig, ax = plt.subplots(2,1)
+    ax[0].plot(t_stepsize, speed, label="speed")
+    ax[0].plot(t_stepsize, speed_ref, label="speed ref")
+    ax[0].set_title("longitudinal speed")
+    ax[0].set_xlabel("time [s]")
+    ax[0].set_ylabel(" longitudinal speed [m/s]")
+    ax[0].legend()
+    ax[1].plot(t_controlperiod, u_acc, label="acceleration")
+    ax[0].set_title("longitudinal acceleration")
+    ax[1].set_xlabel("time [s]")
+    ax[1].set_ylabel("acceleration [m/s^2]")
+    ax[1].legend()
+    plt.savefig("longitudinal_speed_and_acceleration.png")
     plt.show()
 
     

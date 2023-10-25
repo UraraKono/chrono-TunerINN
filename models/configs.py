@@ -5,7 +5,7 @@ import numpy as np
 class MPCConfigEXT:
     NXK: int = 7  # length of kinematic state vector: z = [x, y, vx, yaw angle, vy, yaw rate, steering angle]
     NU: int = 2  # length of input vector: u = = [acceleration, steering speed]
-    TK: int = 15  # finite time horizon length kinematic
+    TK: int = 30  # finite time horizon length kinematic
 
     Rk: list = field(
         default_factory=lambda: np.diag([0.000001, 2.0])
