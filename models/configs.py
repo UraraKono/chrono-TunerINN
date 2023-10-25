@@ -8,17 +8,17 @@ class MPCConfigEXT:
     TK: int = 30  # finite time horizon length kinematic
 
     Rk: list = field(
-        default_factory=lambda: np.diag([0.000001, 2.0])
+        default_factory=lambda: np.diag([0.001, 0.00001])
     )  # input cost matrix, penalty for inputs - [accel, steering_speed]
     Rdk: list = field(
-        default_factory=lambda: np.diag([0.000001, 2.0])
+        default_factory=lambda: np.diag([0.001, 0.00001])
     )  # input difference cost matrix, penalty for change of inputs - [accel, steering_speed]
     Qk: list = field(
-        default_factory=lambda: np.diag([13.5, 13.5, 5.5, 0.0, 0.0, 0.0, 0.0])
+        default_factory=lambda: np.diag([13.5, 13.5, 5.5, 13.0, 0.0, 0.0, 0.0])
         # [13.5, 13.5, 5.5, 13.0, 0.0, 0.0, 0.0]
     )  # state error cost matrix, for the next (T) prediction time steps
     Qfk: list = field(
-        default_factory=lambda: np.diag([13.5, 13.5, 5.5, 0.0, 0.0, 0.0, 0.0])
+        default_factory=lambda: np.diag([13.5, 13.5, 5.5, 13.0, 0.0, 0.0, 0.0])
         # [13.5, 13.5, 5.5, 13.0, 0.0, 0.0, 0.0]
     )  # final state error matrix, penalty  for the final state constraints
     N_IND_SEARCH: int = 20  # Search index number

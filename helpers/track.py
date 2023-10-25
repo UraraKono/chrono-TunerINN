@@ -38,7 +38,7 @@ class Track:
         self.right_boundary = None
         self.calculate_trajectory(reference_speed)
         self.calculate_trajectory_boundary()
-        self.show_trajectory()
+        # self.show_trajectory()
 
     def calculate_trajectory_boundary(self):
         # initialize vector [number_of_points, 2]

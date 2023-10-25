@@ -7,7 +7,7 @@ import time
 import matplotlib.pyplot as plt
 
 
-def init_vehicle():
+def init_vehicle(self):
     # Create the vehicle system
     my_hmmwv = veh.HMMWV_Full()
     my_hmmwv.SetContactMethod(chrono.ChContactMethod_SMC)
@@ -17,7 +17,7 @@ def init_vehicle():
     my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
     my_hmmwv.SetSteeringType(veh.SteeringTypeWV_PITMAN_ARM)
     my_hmmwv.SetTireType(veh.TireModelType_TMEASY)
-    my_hmmwv.SetTireStepSize(step_size)
+    my_hmmwv.SetTireStepSize(self.step_size) # self.step_size
     my_hmmwv.Initialize()
 
     my_hmmwv.SetChassisVisualizationType(veh.VisualizationType_MESH)
@@ -28,7 +28,11 @@ def init_vehicle():
     
     return my_hmmwv
 
-def init_terrain(friction, patch_coords, waypoints):
+def init_terrain(self, friction, patch_coords, waypoints):
+    friction = self.friction
+    patch_coords = self.patch_coords
+    waypoints = self.waypoints
+    
     rest_values = [0.01] * len(patch_coords)
     young_modulus_values = [2e7] * len(patch_coords)
     patch_mats = [chrono.ChMaterialSurfaceSMC() for _ in range(len(patch_coords))]
@@ -37,7 +41,7 @@ def init_terrain(friction, patch_coords, waypoints):
         patch_mat.SetRestitution(rest_values[i])
         patch_mat.SetYoungModulus(young_modulus_values[i])
 
-    terrain = veh.RigidTerrain(my_hmmwv.GetSystem())
+    terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem()) # self.my_hmmwv
 
     # Loop over the patch materials and coordinates to add each patch to the terrain
     patches = []
