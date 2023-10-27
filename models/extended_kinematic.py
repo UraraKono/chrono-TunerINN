@@ -10,7 +10,7 @@ class ExtendedKinematicModel:
 
     def __init__(self, config):
         self.config = config
-        print(self.config.MASS)
+        # print(self.config.MASS)
 
     def clip_input(self, u):
         # u matrix Nx2
