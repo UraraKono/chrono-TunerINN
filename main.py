@@ -100,7 +100,7 @@ else:
                                         [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
                                         [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
 
-    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=5.0)
+    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=15.0)
     waypoints = track.get_reference_trajectory()
     print('waypoints\n',waypoints.shape)
 
@@ -155,9 +155,12 @@ env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, wa
 # steeringPID.Reset(my_hmmwv.GetVehicle())
 
 speedPID = veh.ChSpeedController()
-Kp = 0.6
-Ki = 0.2
-Kd = 0.3
+# Kp = 0.6
+# Ki = 0.2
+# Kd = 0.3
+Kp = 0.4*10
+Ki = 0
+Kd = 0
 speedPID.SetGains(Kp, Ki, Kd)
 speedPID.Reset(env.my_hmmwv.GetVehicle())
 
@@ -216,7 +219,7 @@ t_controlperiod = [] # time list every control_period
 t_stepsize = [] # time list every step_size
 speed = []
 speed_ref = []
-speedPID_output = 0
+speedPID_output = 1.0
 target_speed = 0
 target_acc = 0
 
@@ -249,6 +252,15 @@ while lap_counter < num_laps:
     # Driver inputs
     time = env.my_hmmwv.GetSystem().GetChTime()
     driver_inputs.m_steering = np.clip(steering_output, -1.0, +1.0)
+    speedPID_output = np.clip(speedPID_output, -1.0, +1.0)
+
+    if speedPID_output > 0:
+        driver_inputs.m_throttle = speedPID_output
+        driver_inputs.m_braking = 0.0
+    else:
+        driver_inputs.m_throttle = 0.0
+        driver_inputs.m_braking = -speedPID_output
+
 
     # Update modules (process inputs from other modules)
     env.terrain.Synchronize(time)
@@ -256,20 +268,23 @@ while lap_counter < num_laps:
     env.vis.Synchronize("", driver_inputs)
     
     vehicle_state = get_vehicle_state(env)
-    vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
+    # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
     t_stepsize.append(time)
-    speed.append(speedPID.GetCurrentSpeed())
+    speed.append(vehicle_state[2])
     speed_ref.append(target_speed)
+    # print("speed", vehicle_state)
     
     # Solve MPC every control_step
     if (step_number % (control_step) == 0) : 
         # print("step number", step_number)
         u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
             vehicle_state)
+        print("u", u)
         u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
         target_acc = u[0]
+        print("u", u)
         target_steering_speed = u[1]
-        target_speed = speedPID.GetCurrentSpeed() + target_acc*planner_ekin_mpc.config.DTK
+        target_speed = vehicle_state[2] + target_acc*planner_ekin_mpc.config.DTK
         steering_output = driver_inputs.m_steering + u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # Overshoots soooo much
         # steering_output = u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # This one works better lol. It doesn't make sesnse
         u_acc.append(u[0])
@@ -281,14 +296,17 @@ while lap_counter < num_laps:
         # print("mpc pred y", mpc_pred_y)
         # print("mpc ox", mpc_ox)
         # print("mpc oy", mpc_oy)
+        print("target_speed", target_speed)
         
-        # Update mpc_path_asset with mpc_pred
-        mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(env.config.TK + 1)]
-        mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
-        env.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+        if mpc_ox is not None and not np.any(np.isnan(mpc_ox)):
+            # Update mpc_path_asset with mpc_pred
+            mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(env.config.TK + 1)]
+            mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
+            env.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
 
-    # Advance simulation for one timestep for all modules
-    speedPID_output = speedPID.Advance(env.my_hmmwv.GetVehicle(), target_speed, step_size)
+        # Advance simulation for one timestep for all modules
+        speedPID_output = speedPID.Advance(env.my_hmmwv.GetVehicle(), target_speed, step_size)
+        print('speed pid output', speedPID_output)
     env.step()
 
     # Check if the vehicle has crossed the starting point
