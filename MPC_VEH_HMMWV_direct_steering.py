@@ -79,12 +79,12 @@ class MPCConfig:
 @dataclass
 class VehicleParameters:
     LENGTH: float = 4.298  # Length of the vehicle [m]
-    WIDTH: float = 1.674  # Width of the vehicle [m]
-    LR: float = 1.50876
-    LF: float = 0.88392
-    WB: float = 0.88392 + 1.50876  # Wheelbase [m]
-    MIN_STEER: float = -0.4189  # maximum steering angle [rad]
-    MAX_STEER: float = 0.4189  # maximum steering angle [rad]
+    # WIDTH: float = 1.674  # Width of the vehicle [m]
+    # LR: float = 1.50876
+    # LF: float = 0.88392
+    # WB: float = 0.88392 + 1.50876  # Wheelbase [m]
+    # MIN_STEER: float = -0.4189  # maximum steering angle [rad]
+    # MAX_STEER: float = 0.4189  # maximum steering angle [rad]
     MAX_STEER_V: float = 3.2  # maximum steering speed [rad/s]
     MIN_STEER_V: float = 3.2  # maximum steering speed [rad/s]
     MAX_SPEED: float = 45.0  # maximum speed [m/s]
@@ -92,7 +92,7 @@ class VehicleParameters:
     MAX_ACCEL: float = 11.5  # maximum acceleration [m/ss]
     MAX_DECEL: float = -45.0  # maximum acceleration [m/ss]
 
-    MASS: float = 1225.887  # Vehicle mass
+    # MASS: float = 1225.887  # Vehicle mass
 
 def euler_from_quaternion(x, y, z, w):
     """
@@ -125,6 +125,7 @@ def init_vehicle():
     my_hmmwv.SetPowertrainType(veh.PowertrainModelType_SHAFTS)
     my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
     my_hmmwv.SetSteeringType(veh.SteeringTypeWV_PITMAN_ARM)
+    # my_hmmwv.SetSteeringType(veh.SteeringTypeWV_RACK_PINION)
     my_hmmwv.SetTireType(veh.TireModelType_TMEASY)
     my_hmmwv.SetTireStepSize(step_size)
     my_hmmwv.Initialize()
@@ -355,8 +356,6 @@ if __name__ == '__main__':
     SAVE_MODEL = True
     t_end = 40
 
-
-
     # Creating the single-track Motion planner and Controller
 
     # Init Pure-Pursuit regulator
@@ -411,7 +410,8 @@ if __name__ == '__main__':
     # Create the HMMWV vehicle
     my_hmmwv = init_vehicle()
 
-    friction = [0.5 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
+    friction = [0.5 + i/waypoints.shape[0] for i 
+                in range(waypoints.shape[0])]
     
     # Define the patch coordinates
     patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
@@ -518,7 +518,8 @@ if __name__ == '__main__':
     correct_config.MAX_DECEL = vehicle_params.MAX_DECEL
     correct_config.MASS = vehicle_params.MASS    
 
-    planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=correct_config), waypoints=waypoints,
+    planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=correct_config), 
+                                    waypoints=waypoints,
                                     config=correct_config) #path_follow_mpc.py
     
     control_step = planner_ekin_mpc.config.DTK/step_size  # control step in sim steps

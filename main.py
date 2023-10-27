@@ -41,10 +41,11 @@ from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
 from chrono_env.environment import ChronoEnv
+from chrono_env.utils import get_vehicle_state, init_irrlicht_vis, init_terrain
 
-
-env = ChronoEnv()
-step_size = env.step_size
+# --------------
+step_size = 2e-3
+throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 # Program parameters
 model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
@@ -56,7 +57,10 @@ constant_speed = True
 constant_friction = 0.7
 number_of_laps = 20
 SAVE_MODEL = True
-t_end = 40
+t_end = 60
+# --------------
+
+env = ChronoEnv(step_size, throttle_value)
 
 # Creating the single-track Motion planner and Controller
 
@@ -82,11 +86,11 @@ if not map_name == 'custom_track':
     raceline = np.loadtxt(conf.wpt_path, delimiter=";", skiprows=3)
     waypoints = np.array(raceline)
 else:
-    # centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 50, 2 * 25 * np.pi + 50, 2 * 25 * np.pi + 100],
-    #                                   [0.0, 0.0, -50.0, -50.0, 0.0],
-    #                                   [0.0, 50.0, 50.0, 0.0, 0.0],
-    #                                   [1 / 25, 0.0, 1 / 25, 0.0, 1 / 25],
-    #                                   [0.0, np.pi, np.pi, 0.0, 0.0]]).T
+    centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 50, 2 * 25 * np.pi + 50, 2 * 25 * np.pi + 100],
+                                      [0.0, 0.0, -50.0, -50.0, 0.0],
+                                      [0.0, 50.0, 50.0, 0.0, 0.0],
+                                      [1 / 25, 0.0, 1 / 25, 0.0, 1 / 25],
+                                      [0.0, np.pi, np.pi, 0.0, 0.0]]).T
 
     centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 25, 25 * (3.0 * np.pi / 2.0) + 25, 25 * (3.0 * np.pi / 2.0) + 50,
                                         25 * (2.0 * np.pi + np.pi / 2.0) + 50, 25 * (2.0 * np.pi + np.pi / 2.0) + 125, 25 * (3.0 * np.pi) + 125,
@@ -106,42 +110,41 @@ else:
     
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 
-env.friction = [0.5 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
-
+friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
 
 # Define the patch coordinates
 patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
-# print('patch coords')
-# print(patch_coords)
+
+env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, waypoints=waypoints, curve=curve)
 
 # Create the terrain
-terrain, viz_patch = init_terrain(friction, patch_coords, waypoints)
+# env.terrain, env.viz_patch = init_terrain(env, friction, patch_coords, waypoints)
 
-path = curve
-print("path\n", path)
+# path = curve
+# # print("path\n", path)
 
-npoints = path.getNumPoints()
+# npoints = path.getNumPoints()
 
-path_asset = chrono.ChLineShape()
-path_asset.SetLineGeometry(chrono.ChLineBezier(path))
-path_asset.SetName("test path")
-path_asset.SetColor(chrono.ChColor(0.8, 0.0, 0.0))
-path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-viz_patch.GetGroundBody().AddVisualShape(path_asset)
+# path_asset = chrono.ChLineShape()
+# path_asset.SetLineGeometry(chrono.ChLineBezier(path))
+# path_asset.SetName("test path")
+# path_asset.SetColor(chrono.ChColor(0.8, 0.0, 0.0))
+# path_asset.SetNumRenderPoints(max(2 * npoints, 400))
+# env.viz_patch.GetGroundBody().AddVisualShape(path_asset)
 
-MPC_params = MPCConfig()
+# MPC_params = MPCConfig()
 # Convert waypoints to ChBezierCurve
-mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(MPC_params.TK + 1)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
-mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
+# mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(env.config.TK + 1)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
+# mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
 
-npoints = mpc_curve.getNumPoints()
+# npoints = mpc_curve.getNumPoints()
 
-mpc_path_asset = chrono.ChLineShape()
-mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-mpc_path_asset.SetName("MPC path")
-mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
-mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
+# mpc_path_asset = chrono.ChLineShape()
+# mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+# mpc_path_asset.SetName("MPC path")
+# mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
+# mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
+# env.viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
 
 # What's the difference between path_asset and mpc_path_asset?
 
@@ -156,22 +159,11 @@ Kp = 0.6
 Ki = 0.2
 Kd = 0.3
 speedPID.SetGains(Kp, Ki, Kd)
-speedPID.Reset(my_hmmwv.GetVehicle())
+speedPID.Reset(env.my_hmmwv.GetVehicle())
 
-# Create the vehicle Irrlicht application
-vis = init_irrlicht_vis(my_hmmwv)
-
-
-# # Visualization of controller points (target)
-# ballT = vis.GetSceneManager().addSphereSceneNode(0.1)
-# ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
-
-# Visualization of controller points (sentinel & target)
-ballS = vis.GetSceneManager().addSphereSceneNode(0.1)
-ballT = vis.GetSceneManager().addSphereSceneNode(0.1)
-ballS.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 255, 0, 0)
-ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
-
+# I did this in env.make but not sure if I need to do it again here
+# # Create the vehicle Irrlicht application
+# env.vis = init_irrlicht_vis(env.my_hmmwv)
 
 # ---------------
 # Simulation loop
@@ -179,7 +171,7 @@ ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
 
 # steeringPID_output = 0
 
-my_hmmwv.GetVehicle().EnableRealtime(True)
+env.my_hmmwv.GetVehicle().EnableRealtime(True)
 num_laps = 3  # Number of laps
 lap_counter = 0
 
@@ -188,34 +180,33 @@ starting_point = chrono.ChVectorD(-100, 0, 0.6)  # Replace with the actual start
 tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has crossed the starting point
 
 # Reset the simulation time
-my_hmmwv.GetSystem().SetChTime(0)
+env.my_hmmwv.GetSystem().SetChTime(0)
 
 # Time interval between two render frames
-render_step_size = 1.0 / 50  # FPS = 50 frame per second
+env.render_step_size = 1.0 / 50  # FPS = 50 frame per second
 
-render_steps = math.ceil(render_step_size / step_size)
+render_steps = math.ceil(env.render_step_size / step_size)
 step_number = 0
-render_frame = 0
 
-vehicle_params = get_vehicle_parameters(my_hmmwv)
+# vehicle_params = get_vehicle_parameters(my_hmmwv)
 
-correct_config = MPCConfigEXT()
-correct_config.LENGTH = vehicle_params.LENGTH
-correct_config.WIDTH = vehicle_params.WIDTH
-correct_config.LR = vehicle_params.LR
-correct_config.LF = vehicle_params.LF
-correct_config.WB = vehicle_params.WB
-correct_config.MIN_STEER = vehicle_params.MIN_STEER
-correct_config.MAX_STEER = vehicle_params.MAX_STEER
-correct_config.MAX_STEER_V = vehicle_params.MAX_STEER_V
-correct_config.MAX_SPEED = vehicle_params.MAX_SPEED
-correct_config.MIN_SPEED = vehicle_params.MIN_SPEED
-correct_config.MAX_ACCEL = vehicle_params.MAX_ACCEL
-correct_config.MAX_DECEL = vehicle_params.MAX_DECEL
-correct_config.MASS = vehicle_params.MASS    
+env.config.LENGTH      = env.vehicle_params.LENGTH
+env.config.WIDTH       = env.vehicle_params.WIDTH
+env.config.LR          = env.vehicle_params.LR
+env.config.LF          = env.vehicle_params.LF
+env.config.WB          = env.vehicle_params.WB
+env.config.MIN_STEER   = env.vehicle_params.MIN_STEER
+env.config.MAX_STEER   = env.vehicle_params.MAX_STEER
+env.config.MAX_STEER_V = env.vehicle_params.MAX_STEER_V
+env.config.MAX_SPEED   = env.vehicle_params.MAX_SPEED
+env.config.MIN_SPEED   = env.vehicle_params.MIN_SPEED
+env.config.MAX_ACCEL   = env.vehicle_params.MAX_ACCEL
+env.config.MAX_DECEL   = env.vehicle_params.MAX_DECEL
+env.config.MASS        = env.vehicle_params.MASS    
 
-planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=correct_config), waypoints=waypoints,
-                                config=correct_config) #path_follow_mpc.py
+planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config), 
+                                waypoints=waypoints,
+                                config=env.config) #path_follow_mpc.py
 
 control_step = planner_ekin_mpc.config.DTK/step_size  # control step in sim steps
 
@@ -228,43 +219,44 @@ speed_ref = []
 speedPID_output = 0
 target_speed = 0
 target_acc = 0
+
 steering_output = 0
+target_steering_speed = 0
+
+driver_inputs = veh.DriverInputs()
+driver_inputs.m_throttle = throttle_value
+driver_inputs.m_braking = 0.0
+
+# driver = veh.ChDriver(env.my_hmmwv.GetVehicle()) #This command does NOT work. Never use ChDriver!
 
 while lap_counter < num_laps:
+    # throttle = veh.ChDriver(env.my_hmmwv.GetVehicle()).GetThrottle() 
+    # steering = veh.ChDriver(env.my_hmmwv.GetVehicle()).GetSteering()
+    # print("throttle", throttle,driver.GetInputs().m_throttle, driver_inputs.m_throttle, "steering", steering,driver.GetInputs().m_steering,driver_inputs.m_steering)
+    
     # target_speed += target_acc*step_size
+    # steering_output += target_steering_speed*step_size/env.config.MAX_STEER
+  
     # Render scene
     if (step_number % (render_steps) == 0) :
-        vis.BeginScene()
-        vis.Render()
-        vis.EndScene()
+        env.vis.BeginScene()
+        env.vis.Render()
+        env.vis.EndScene()
 
-    # Increment frame number
+    # # Increment frame number
     step_number += 1
 
     # Driver inputs
-    time = my_hmmwv.GetSystem().GetChTime()
-    driver_inputs = veh.DriverInputs()
+    time = env.my_hmmwv.GetSystem().GetChTime()
     driver_inputs.m_steering = np.clip(steering_output, -1.0, +1.0)
-    driver_inputs.m_throttle = throttle_value
-    driver_inputs.m_braking = 0.0
-
-    # # Update sentinel and target location markers for the path-follower controller.
-    # pT = steeringPID.GetTargetLocation()
-    # ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
-
-    # Update sentinel and target location markers for the path-follower controller.
-    # pS = steeringPID.GetSentinelLocation()
-    # pT = steeringPID.GetTargetLocation()
-    # ballS.setPosition(chronoirr.vector3df(pS.x, pS.y, pS.z))
-    # ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
-
 
     # Update modules (process inputs from other modules)
-    terrain.Synchronize(time)
-    my_hmmwv.Synchronize(time, driver_inputs, terrain)
-    vis.Synchronize("", driver_inputs)
+    env.terrain.Synchronize(time)
+    env.my_hmmwv.Synchronize(time, driver_inputs, env.terrain)
+    env.vis.Synchronize("", driver_inputs)
     
-    vehicle_state = get_vehicle_state(my_hmmwv)
+    vehicle_state = get_vehicle_state(env)
+    vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
     t_stepsize.append(time)
     speed.append(speedPID.GetCurrentSpeed())
     speed_ref.append(target_speed)
@@ -274,15 +266,15 @@ while lap_counter < num_laps:
         # print("step number", step_number)
         u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
             vehicle_state)
-        u[0] = u[0] / vehicle_params.MASS  # Force to acceleration
+        u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
         target_acc = u[0]
+        target_steering_speed = u[1]
         target_speed = speedPID.GetCurrentSpeed() + target_acc*planner_ekin_mpc.config.DTK
-        steering_output =veh.ChDriver(my_hmmwv.GetVehicle()).GetSteering() + u[1]*planner_ekin_mpc.config.DTK/correct_config.MAX_STEER
-        # target_speed = speedPID.GetCurrentSpeed()
+        steering_output = driver_inputs.m_steering + u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # Overshoots soooo much
+        # steering_output = u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # This one works better lol. It doesn't make sesnse
         u_acc.append(u[0])
-        # u_steer_speed.append(u[1])
         t_controlperiod.append(time)
-        # print("u", u)
+        # print("vehicle_state.vx", vehicle_state[2],"speedPID.GetCurrentSpeed()", speedPID.GetCurrentSpeed())
         # print("mpc ref path x", mpc_ref_path_x) #list length of 16 (TK + 1)
         # print("mpc ref path y", mpc_ref_path_y)
         # print("mpc pred x", mpc_pred_x)
@@ -291,24 +283,16 @@ while lap_counter < num_laps:
         # print("mpc oy", mpc_oy)
         
         # Update mpc_path_asset with mpc_pred
-        mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(MPC_params.TK + 1)]
+        mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(env.config.TK + 1)]
         mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
-        mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-
-        # steeringPID = veh.ChPathSteeringController(mpc_curve) 
-        # steeringPID.SetLookAheadDistance(5)
-        # steeringPID.SetGains(0.8, 0, 0)
-        # steeringPID.Reset(my_hmmwv.GetVehicle())
+        env.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
 
     # Advance simulation for one timestep for all modules
-    speedPID_output = speedPID.Advance(my_hmmwv.GetVehicle(), target_speed, step_size)
-    # steeringPID_output = steeringPID.Advance(my_hmmwv.GetVehicle(), step_size)
-    terrain.Advance(step_size)
-    my_hmmwv.Advance(step_size)
-    vis.Advance(step_size)
+    speedPID_output = speedPID.Advance(env.my_hmmwv.GetVehicle(), target_speed, step_size)
+    env.step()
 
     # Check if the vehicle has crossed the starting point
-    pos = my_hmmwv.GetVehicle().GetPos()
+    pos = env.my_hmmwv.GetVehicle().GetPos()
     distance_to_start = (pos - starting_point).Length()
 
     if distance_to_start < tolerance:
@@ -317,23 +301,6 @@ while lap_counter < num_laps:
 
     if time > t_end:
         break
-
-# plt.figure()
-# plt.plot(t_stepsize, speed, label="speed")
-# plt.plot(t_stepsize, speed_ref, label="speed ref")
-# plt.xlabel("time [s]")
-# plt.ylabel(" longitudinal speed [m/s]")
-# plt.legend()
-# plt.savefig("longitudinal_speed.png")
-
-# plt.figure()
-# plt.plot(t_controlperiod, u_acc, label="acceleration") 
-# plt.xlabel("time [s]")
-# plt.ylabel("acceleration [m/s^2]")
-# plt.legend()
-# plt.savefig("acceleration.png")
-
-# plt.show()
 
 fig, ax = plt.subplots(2,1)
 ax[0].plot(t_stepsize, speed, label="speed")
