@@ -7,7 +7,7 @@ def init_vehicle(self):
     my_hmmwv = veh.HMMWV_Full()
     my_hmmwv.SetContactMethod(chrono.ChContactMethod_SMC)
     my_hmmwv.SetChassisFixed(False)
-    my_hmmwv.SetInitPosition(chrono.ChCoordsysD(chrono.ChVectorD(0, 0, 0.5),chrono.QUNIT))
+    my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
     my_hmmwv.SetPowertrainType(veh.PowertrainModelType_SHAFTS)
     my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
     my_hmmwv.SetSteeringType(veh.SteeringTypeWV_PITMAN_ARM)

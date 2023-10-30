@@ -15,13 +15,16 @@ class ChronoEnv:
         self.vis = None
         self.vehicle_params = None
         self.config = None
-        # self.lap_counter = 0
+
         # Time interval between two render frames
         self.render_step_size = 1.0 / 50  # FPS = 50 frame per second
         self.render_steps = math.ceil(self.render_step_size / self.step_size)
 
         self.step_number = 0
         self.time=0
+        self.lap_counter = 0
+        self.lap_flag = True
+        self.tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has crossed the starting point
 
         self.u_acc = []
         # u_steer_speed = [] #steering speed from MPC is not used. ox/oy are used instead
@@ -39,11 +42,12 @@ class ChronoEnv:
         self.driver_inputs.m_braking = 0.0
 
 
-    def make(self, config, friction, patch_coords, waypoints, curve, speedPID_Gain=[0.4,0,0]) -> None:
+    def make(self, config, friction, patch_coords, waypoints, curve, speedPID_Gain=[0.4,0,0], ini_pos = chrono.ChVectorD(0, 0, 0.5)) -> None:
         # self.my_hmmwv = utils.init_vehicle(self)
         # self.terrain, self.viz_patch = utils.init_terrain(self, friction, patch_coords, waypoints)
         # self.vis = utils.init_irrlicht_vis(self.my_hmmwv)
         # self.vehicle_params = utils.VehicleParameters(self.my_hmmwv)
+        self.ini_pos = ini_pos
         self.my_hmmwv = init_vehicle(self)
         self.terrain, self.viz_patch = init_terrain(self, friction, patch_coords, waypoints)
         self.vis = init_irrlicht_vis(self.my_hmmwv)
@@ -115,6 +119,19 @@ class ChronoEnv:
         self.t_stepsize.append(self.time)
         self.speed.append(vehicle_state[2])
         self.speed_ref.append(self.target_speed)
+
+        # lap counter: Check if the vehicle has crossed the starting point
+        pos = self.my_hmmwv.GetVehicle().GetPos()
+        distance_to_start = (pos - self.ini_pos).Length()
+
+        if distance_to_start < self.tolerance and self.lap_flag is False:
+            self.lap_counter += 1
+            self.lap_flag = True
+            print(f"Completed lap {self.lap_counter} at time {self.time}")
+        elif self.lap_flag is True and distance_to_start > self.tolerance:
+            self.lap_flag = False
+
+
         
         # Solve MPC every control_step
         if (self.step_number % (self.control_step) == 0) : 

@@ -50,7 +50,7 @@ constant_speed = True
 constant_friction = 0.7
 number_of_laps = 20
 SAVE_MODEL = True
-t_end = 10
+t_end = 200
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -116,7 +116,7 @@ Ki = 0
 Kd = 0
 
 env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, 
-         waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd])
+         waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], ini_pos=chrono.ChVectorD(-60, 0, 0.5))
 
 # ---------------
 # Simulation loop
@@ -126,9 +126,9 @@ env.my_hmmwv.GetVehicle().EnableRealtime(True)
 num_laps = 3  # Number of laps
 lap_counter = 0
 
-# Define the starting point and a tolerance distance
-starting_point = chrono.ChVectorD(-100, 0, 0.6)  # Replace with the actual starting point coordinates
-tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has crossed the starting point
+# # Define the starting point and a tolerance distance
+# # starting_point = chrono.ChVectorD(-70, 0, 0.6)  # Replace with the actual starting point coordinates
+# tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has crossed the starting point
 
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
@@ -158,14 +158,6 @@ while lap_counter < num_laps:
     env.render()
 
     env.step()
-    
-    # Check if the vehicle has crossed the starting point
-    pos = env.my_hmmwv.GetVehicle().GetPos()
-    distance_to_start = (pos - starting_point).Length()
-
-    if distance_to_start < tolerance:
-        lap_counter += 1
-        print(f"Completed lap {lap_counter}")
 
     if env.time > t_end:
         print("env.time",env.time)
