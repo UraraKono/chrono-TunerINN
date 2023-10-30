@@ -113,8 +113,8 @@ class ChronoEnv:
         self.my_hmmwv.Synchronize(self.time, self.driver_inputs, self.terrain)
         self.vis.Synchronize("", self.driver_inputs)
         
-        # vehicle_state = utils.get_vehicle_state(self)
         vehicle_state = get_vehicle_state(self)
+        # vehicle_state = utils.get_vehicle_state(self)
         # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
         self.t_stepsize.append(self.time)
         self.speed.append(vehicle_state[2])

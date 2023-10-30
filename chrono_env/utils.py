@@ -35,6 +35,25 @@ def init_terrain(self, friction, patch_coords, waypoints):
 
     terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem()) # self.my_hmmwv
 
+    # Base Rigid terrain centered at the mean of the patches
+    patch_coords_mean = np.mean(patch_coords, axis=0)
+    # If the z position is 0, the visualization blinks so much
+    base_pos = chrono.ChVectorD(int(patch_coords_mean[0]), int(patch_coords_mean[1]), int(patch_coords_mean[2])-0.1)
+    terrainLength = 200.0  # size in X direction
+    terrainWidth = 200.0   # size in Y direction
+    patch_mat_base = chrono.ChMaterialSurfaceSMC()
+    patch_mat_base.SetFriction(1.4)
+    patch_mat_base.SetRestitution(0.01)
+    patch_mat_base.SetYoungModulus(2e7)
+    base_coord = chrono.ChCoordsysD(base_pos,chrono.QUNIT)
+    patch_base = terrain.AddPatch(patch_mat_base, 
+                             base_coord, 
+                             terrainLength, terrainWidth)
+    patch_base.SetTexture(veh.GetDataFile("terrain/textures/grass.jpg"), 200, 200) #concrete, dirt, grass, tile4
+    print(veh.GetDataPath())
+    # patch_base.SetColor(chrono.ChColor(0.8, 0.8, 0.5))
+    
+
     # Loop over the patch materials and coordinates to add each patch to the terrain
     patches = []
     for i, patch_mat in enumerate(patch_mats):
@@ -52,14 +71,20 @@ def init_terrain(self, friction, patch_coords, waypoints):
     viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
     
     # Set color of patch based on friction value
+    min_friction = min(friction)
+    max_friction = max(friction)
     for i, patch in enumerate(patches):
         # print(friction[i])
-        RGB_value = 1 - (friction[i] - 0.4)
+        RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
+        # RGB_value = 1 - (friction[i] - 0.4)
         # print(RGB_value, friction[i])
         patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
 
     # for patch in patches:
     #     patch.SetTexture(veh.GetDataFile("terrain/textures/concrete.jpg"), 10, 10)
+
+    
+
 
     terrain.Initialize()
     return terrain, viz_patch
