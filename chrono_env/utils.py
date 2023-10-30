@@ -1,11 +1,6 @@
 import pychrono as chrono
 import pychrono.vehicle as veh
-import pychrono.irrlicht as chronoirr
 import numpy as np
-import math
-import time
-import matplotlib.pyplot as plt
-from dataclasses import dataclass, field
 
 def init_vehicle(self):
     # Create the vehicle system

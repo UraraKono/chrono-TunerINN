@@ -22,15 +22,10 @@
 
 import pychrono as chrono
 import pychrono.vehicle as veh
-import pychrono.irrlicht as chronoirr
-import numpy as np
-import math
+# import pychrono.irrlicht as chronoirr
 import numpy as np
 import json
 import matplotlib.pyplot as plt
-
-from dataclasses import dataclass, field
-import time
 import yaml
 from argparse import Namespace
 from regulators.pure_pursuit import *
@@ -39,7 +34,7 @@ from models.extended_kinematic import ExtendedKinematicModel
 from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
-from chrono_env.environment_new import ChronoEnv
+from chrono_env.environment import ChronoEnv
 
 # --------------
 step_size = 2e-3
@@ -123,57 +118,9 @@ Kd = 0
 env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, 
          waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd])
 
-# Create the terrain
-# env.terrain, env.viz_patch = init_terrain(env, friction, patch_coords, waypoints)
-
-# path = curve
-# # print("path\n", path)
-
-# npoints = path.getNumPoints()
-
-# path_asset = chrono.ChLineShape()
-# path_asset.SetLineGeometry(chrono.ChLineBezier(path))
-# path_asset.SetName("test path")
-# path_asset.SetColor(chrono.ChColor(0.8, 0.0, 0.0))
-# path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-# env.viz_patch.GetGroundBody().AddVisualShape(path_asset)
-
-# MPC_params = MPCConfig()
-# Convert waypoints to ChBezierCurve
-# mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(env.config.TK + 1)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
-# mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
-
-# npoints = mpc_curve.getNumPoints()
-
-# mpc_path_asset = chrono.ChLineShape()
-# mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-# mpc_path_asset.SetName("MPC path")
-# mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
-# mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-# env.viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
-
-# What's the difference between path_asset and mpc_path_asset?
-
-# Create the PID lateral controller
-# steeringPID = veh.ChPathSteeringController(mpc_curve)
-# steeringPID.SetLookAheadDistance(5) 
-# steeringPID.SetGains(0.8, 0, 0)
-# steeringPID.Reset(my_hmmwv.GetVehicle())
-
-# speedPID = veh.ChSpeedController()
-
-# speedPID.SetGains(Kp, Ki, Kd)
-# speedPID.Reset(env.my_hmmwv.GetVehicle())
-
-# I did this in env.make but not sure if I need to do it again here
-# # Create the vehicle Irrlicht application
-# env.vis = init_irrlicht_vis(env.my_hmmwv)
-
 # ---------------
 # Simulation loop
 # ---------------
-
-# steeringPID_output = 0
 
 env.my_hmmwv.GetVehicle().EnableRealtime(True)
 num_laps = 3  # Number of laps
@@ -185,14 +132,6 @@ tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has cros
 
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
-
-# # Time interval between two render frames
-# env.render_step_size = 1.0 / 50  # FPS = 50 frame per second
-
-# env.render_steps = math.ceil(env.render_step_size / step_size)
-# env.step_number = 0
-
-# vehicle_params = get_vehicle_parameters(my_hmmwv)
 
 env.config.LENGTH      = env.vehicle_params.LENGTH
 env.config.WIDTH       = env.vehicle_params.WIDTH
@@ -212,100 +151,14 @@ env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.conf
                                 waypoints=waypoints,
                                 config=env.config) #path_follow_mpc.py
 
-# control_step = planner_ekin_mpc.config.DTK/step_size  
-
-# u_acc = []
-# # u_steer_speed = [] #steering speed from MPC is not used. ox/oy are used instead
-# t_controlperiod = [] # time list every control_period
-# t_stepsize = [] # time list every step_size
-# speed = []
-# speed_ref = []
-# speedPID_output = 1.0
-# target_speed = 0
-# target_acc = 0
-
-# steering_output = 0
-# target_steering_speed = 0
-
-# driver_inputs = veh.DriverInputs()
-# driver_inputs.m_throttle = throttle_value
-# driver_inputs.m_braking = 0.0
-
 # driver = veh.ChDriver(env.my_hmmwv.GetVehicle()) #This command does NOT work. Never use ChDriver!
 
 while lap_counter < num_laps:
     # Render scene
     env.render()
-    # if (env.step_number % (env.render_steps) == 0) :
-    #     env.vis.BeginScene()
-    #     env.vis.Render()
-    #     env.vis.EndScene()
 
     env.step()
-
     
-
-    # # Increment frame number
-    # env.step_number += 1
-
-    # # Driver inputs
-    # time = env.my_hmmwv.GetSystem().GetChTime()
-    # driver_inputs.m_steering = np.clip(steering_output, -1.0, +1.0)
-    # speedPID_output = np.clip(speedPID_output, -1.0, +1.0)
-
-    # if speedPID_output > 0:
-    #     driver_inputs.m_throttle = speedPID_output
-    #     driver_inputs.m_braking = 0.0
-    # else:
-    #     driver_inputs.m_throttle = 0.0
-    #     driver_inputs.m_braking = -speedPID_output
-
-
-    # # Update modules (process inputs from other modules)
-    # env.terrain.Synchronize(time)
-    # env.my_hmmwv.Synchronize(time, driver_inputs, env.terrain)
-    # env.vis.Synchronize("", driver_inputs)
-    
-    # vehicle_state = get_vehicle_state(env)
-    # # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
-    # t_stepsize.append(time)
-    # speed.append(vehicle_state[2])
-    # speed_ref.append(target_speed)
-    # # print("speed", vehicle_state)
-    
-    # # Solve MPC every control_step
-    # if (env.step_number % (control_step) == 0) : 
-    #     # print("step number", step_number)
-    #     u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
-    #         vehicle_state)
-    #     u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
-    #     target_acc = u[0]
-    #     target_steering_speed = u[1]
-    #     target_speed = vehicle_state[2] + target_acc*planner_ekin_mpc.config.DTK
-    #     steering_output = driver_inputs.m_steering + u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # Overshoots soooo much
-    #     # steering_output = u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # This one works better lol. It doesn't make sesnse
-    #     u_acc.append(u[0])
-    #     t_controlperiod.append(time)
-    #     # print("vehicle_state.vx", vehicle_state[2],"speedPID.GetCurrentSpeed()", speedPID.GetCurrentSpeed())
-    #     # print("mpc ref path x", mpc_ref_path_x) #list length of 16 (TK + 1)
-    #     # print("mpc ref path y", mpc_ref_path_y)
-    #     # print("mpc pred x", mpc_pred_x)
-    #     # print("mpc pred y", mpc_pred_y)
-    #     # print("mpc ox", mpc_ox)
-    #     # print("mpc oy", mpc_oy)
-    #     # print("target_speed", target_speed)
-        
-        # if mpc_ox is not None and not np.any(np.isnan(mpc_ox)):
-        #     # Update mpc_path_asset with mpc_pred
-        #     mpc_curve_points = [chrono.ChVectorD(mpc_ox[i], mpc_oy[i], 0.6) for i in range(env.config.TK + 1)]
-        #     mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
-        #     env.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-
-        # # Advance simulation for one timestep for all modules
-        # speedPID_output = speedPID.Advance(env.my_hmmwv.GetVehicle(), target_speed, step_size)
-        # # print('speed pid output', speedPID_output)
-    
-
     # Check if the vehicle has crossed the starting point
     pos = env.my_hmmwv.GetVehicle().GetPos()
     distance_to_start = (pos - starting_point).Length()

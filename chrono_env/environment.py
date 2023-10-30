@@ -3,23 +3,9 @@ import pychrono.vehicle as veh
 import pychrono.irrlicht as chronoirr
 import numpy as np
 import math
-# import time
 import numpy as np
-import json
-import matplotlib.pyplot as plt
-
-from dataclasses import dataclass, field
-# import time
-import yaml
-from argparse import Namespace
-from . import utils
-# from regulators.pure_pursuit import *
-# from regulators.path_follow_mpc import *
-# from models.extended_kinematic import ExtendedKinematicModel
-# from models.GP_model_single import GPSingleModel
-# from models.configs import *
-# from helpers.closest_point import *
-# from helpers.track import Track
+# from .utils import *
+from .utils import VehicleParameters, init_vehicle, init_terrain, init_irrlicht_vis, get_vehicle_state
 
 class ChronoEnv:
     def __init__(self, step_size, throttle_value) -> None:
@@ -52,11 +38,16 @@ class ChronoEnv:
         self.driver_inputs.m_throttle = throttle_value
         self.driver_inputs.m_braking = 0.0
 
+
     def make(self, config, friction, patch_coords, waypoints, curve, speedPID_Gain=[0.4,0,0]) -> None:
-        self.my_hmmwv = utils.init_vehicle(self)
-        self.terrain, self.viz_patch = utils.init_terrain(self, friction, patch_coords, waypoints)
-        self.vis = utils.init_irrlicht_vis(self.my_hmmwv)
-        self.vehicle_params = utils.VehicleParameters(self.my_hmmwv)
+        # self.my_hmmwv = utils.init_vehicle(self)
+        # self.terrain, self.viz_patch = utils.init_terrain(self, friction, patch_coords, waypoints)
+        # self.vis = utils.init_irrlicht_vis(self.my_hmmwv)
+        # self.vehicle_params = utils.VehicleParameters(self.my_hmmwv)
+        self.my_hmmwv = init_vehicle(self)
+        self.terrain, self.viz_patch = init_terrain(self, friction, patch_coords, waypoints)
+        self.vis = init_irrlicht_vis(self.my_hmmwv)
+        self.vehicle_params = VehicleParameters(self.my_hmmwv)
         self.config = config
         self.control_step = self.config.DTK / self.step_size # control step for MPC in sim steps
 
@@ -118,7 +109,8 @@ class ChronoEnv:
         self.my_hmmwv.Synchronize(self.time, self.driver_inputs, self.terrain)
         self.vis.Synchronize("", self.driver_inputs)
         
-        vehicle_state = utils.get_vehicle_state(self)
+        # vehicle_state = utils.get_vehicle_state(self)
+        vehicle_state = get_vehicle_state(self)
         # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
         self.t_stepsize.append(self.time)
         self.speed.append(vehicle_state[2])
@@ -126,7 +118,7 @@ class ChronoEnv:
         
         # Solve MPC every control_step
         if (self.step_number % (self.control_step) == 0) : 
-            # print("step number", step_number)
+            # print("step number", self.step_number)
             u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = self.planner_ekin_mpc.plan(
                 vehicle_state)
             u[0] = u[0] / self.vehicle_params.MASS  # Force to acceleration
@@ -134,6 +126,8 @@ class ChronoEnv:
             self.target_speed = vehicle_state[2] + u[0]*self.planner_ekin_mpc.config.DTK
             self.steering_output = self.driver_inputs.m_steering + u[1]*self.planner_ekin_mpc.config.DTK/self.config.MAX_STEER # Overshoots soooo much
             # steering_output = u[1]*planner_ekin_mpc.config.DTK/self.config.MAX_STEER # This one works better lol. It doesn't make sesnse
+            self.speedPID_output = self.speedPID.Advance(self.my_hmmwv.GetVehicle(), self.target_speed, self.step_size)
+            # print('speed pid output', self.speedPID_output)
             self.u_acc.append(u[0])
             self.t_controlperiod.append(self.time)
             # print("vehicle_state.vx", vehicle_state[2],"speedPID.GetCurrentSpeed()", speedPID.GetCurrentSpeed())
@@ -151,13 +145,12 @@ class ChronoEnv:
                 mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
                 self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
 
-            # Advance simulation for one timestep for all modules
-            self.speedPID_output = self.speedPID.Advance(self.my_hmmwv.GetVehicle(), self.target_speed, self.step_size)
-            # print('speed pid output', self.speedPID_output)
         
-            self.terrain.Advance(self.step_size)
-            self.my_hmmwv.Advance(self.step_size)
-            self.vis.Advance(self.step_size)
+        # Advance simulation for one timestep for all modules
+        # These three lines should be outside of the if statement for MPC!!!
+        self.terrain.Advance(self.step_size) 
+        self.my_hmmwv.Advance(self.step_size)
+        self.vis.Advance(self.step_size)
 
     def render(self) -> None:
         if (self.step_number % (self.render_steps) == 0) :
