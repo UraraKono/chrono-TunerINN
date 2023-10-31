@@ -38,7 +38,7 @@ def init_terrain(self, friction, patch_coords, waypoints):
     # Base Rigid terrain centered at the mean of the patches
     patch_coords_mean = np.mean(patch_coords, axis=0)
     # If the z position is 0, the visualization blinks so much
-    base_pos = chrono.ChVectorD(int(patch_coords_mean[0]), int(patch_coords_mean[1]), int(patch_coords_mean[2])-0.1)
+    base_pos = chrono.ChVectorD(int(patch_coords_mean[0]), int(patch_coords_mean[1]), int(patch_coords_mean[2])-0.05)
     terrainLength = 200.0  # size in X direction
     terrainWidth = 200.0   # size in Y direction
     patch_mat_base = chrono.ChMaterialSurfaceSMC()
@@ -65,6 +65,7 @@ def init_terrain(self, friction, patch_coords, waypoints):
             s = waypoints[i+1, 0] - waypoints[i,0]
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
+        # print('r',r)
         patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s, s)
         patches.append(patch)
 

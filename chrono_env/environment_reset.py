@@ -90,7 +90,28 @@ class ChronoEnv:
         self.speedPID.SetGains(self.Kp, self.Ki, self.Kd)
         self.speedPID.Reset(self.my_hmmwv.GetVehicle())
 
-    # def reset(self) -> None:
+    def reset(self, initial_state=np.zeros(7), throttle=0, brake=0) -> None:
+        # vehicle_state = np.array([x,  # x
+        #                       y,  # y
+        #                       vx,  # vx
+        #                       yaw_angle,  # yaw angle
+        #                       vy,  # vy
+        #                       yaw_rate,  # yaw rate
+        #                       steering*max_steering_angle,  # steering angle
+        #                     ])
+        self.my_hmmwv.SetInitPosition(chrono.ChCoordsysD(
+            chrono.ChVectorD(initial_state[0], initial_state[1], 0.5),chrono.QUNIT))
+        self.driver_inputs.m_throttle = throttle
+        self.driver_inputs.m_braking = brake
+        self.driver_inputs.m_steering = initial_state[-1]/self.vehicle_params.MAX_STEER
+        if throttle > 0:
+            self.speedPID_output = throttle
+        else:
+            self.speedPID_output = -brake
+
+        veh.GetSystem().StateScatter()
+
+
 
     def step(self) -> None:
         # Increment frame number
@@ -114,7 +135,6 @@ class ChronoEnv:
         self.vis.Synchronize("", self.driver_inputs)
         
         vehicle_state = get_vehicle_state(self)
-        print("vehicle_state", vehicle_state)
         # vehicle_state = utils.get_vehicle_state(self)
         # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
         self.t_stepsize.append(self.time)

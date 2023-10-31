@@ -34,7 +34,7 @@ from models.extended_kinematic import ExtendedKinematicModel
 from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
-from chrono_env.environment import ChronoEnv
+from chrono_env.environment_reset import ChronoEnv
 
 # --------------
 step_size = 2e-3
