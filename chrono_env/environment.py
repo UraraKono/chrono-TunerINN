@@ -52,6 +52,7 @@ class ChronoEnv:
         # self.vehicle_params = utils.VehicleParameters(self.my_hmmwv)
         self.ini_pos = ini_pos
         self.my_hmmwv = init_vehicle(self)
+        self.my_hmmwv.state = get_vehicle_state(self)
         self.terrain, self.viz_patch = init_terrain(self, friction, patch_coords, waypoints)
         self.vis = init_irrlicht_vis(self.my_hmmwv)
         self.vehicle_params = VehicleParameters(self.my_hmmwv)
@@ -96,9 +97,6 @@ class ChronoEnv:
     # def reset(self) -> None:
 
     def step(self, target_speed, target_steering) -> None:
-        # Increment frame number
-        self.step_number += 1
-
         # Driver inputs
         self.time = self.my_hmmwv.GetSystem().GetChTime()
         self.driver_inputs.m_steering = np.clip(target_steering, -1.0, +1.0)
@@ -160,6 +158,9 @@ class ChronoEnv:
         self.terrain.Advance(self.step_size) 
         self.my_hmmwv.Advance(self.step_size)
         self.vis.Advance(self.step_size)
+
+        # Increment frame number
+        self.step_number += 1
 
     def render(self) -> None:
         if (self.step_number % (self.render_steps) == 0) :

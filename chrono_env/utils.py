@@ -20,7 +20,7 @@ def init_vehicle(self):
     my_hmmwv.SetSteeringVisualizationType(veh.VisualizationType_PRIMITIVES)
     my_hmmwv.SetWheelVisualizationType(veh.VisualizationType_PRIMITIVES)
     my_hmmwv.SetTireVisualizationType(veh.VisualizationType_PRIMITIVES)
-    
+
     self.my_hmmwv = my_hmmwv
     return my_hmmwv
 
@@ -66,7 +66,7 @@ def init_terrain(self, friction, patch_coords, waypoints):
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s, s)
+        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 1.2*s, s)
         patches.append(patch)
 
     viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)

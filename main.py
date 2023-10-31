@@ -45,11 +45,11 @@ model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
 map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
 use_dyn_friction = False
-gp_mpc_type = 'frenet'  # cartesian, frenet
-render_every = 30  # render graphics every n sim steps
-constant_speed = True
-constant_friction = 0.7
-number_of_laps = 20
+# gp_mpc_type = 'frenet'  # cartesian, frenet
+# render_every = 30  # render graphics every n sim steps
+# constant_speed = True
+# constant_friction = 0.7
+# number_of_laps = 20
 SAVE_MODEL = True
 t_end = 200
 # --------------
@@ -158,7 +158,7 @@ steering = 0
 while lap_counter < num_laps:
     # Render scene
     env.render()
-    env.step(speed, steering)
+    # env.step()
 
     if (env.step_number % (env.control_step) == 0):
         # env.my_hmmwv.state = get_vehicle_state(env)
@@ -169,6 +169,8 @@ while lap_counter < num_laps:
         # env.steering_output = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
         speed = env.my_hmmwv.state[2] + u[0]*env.planner_ekin_mpc.config.DTK
         steering = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
+    
+    env.step(speed, steering)
 
     # env.get
 
@@ -177,23 +179,41 @@ while lap_counter < num_laps:
         print("env.time",env.time)
         break
 
-fig, ax = plt.subplots(2,1)
-ax[0].plot(env.t_stepsize, env.speed, label="speed")
-ax[0].plot(env.t_stepsize, env.speed_ref, label="speed ref")
-ax[0].set_title("longitudinal speed")
-ax[0].set_xlabel("time [s]")
-ax[0].set_ylabel(" longitudinal speed [m/s]")
-ax[0].legend()
+# fig, ax = plt.subplots(2,1)
+# ax[0].plot(env.t_stepsize, env.speed, label="speed")
+# # ax[0].plot(env.t_stepsize, env.speed_ref, label="speed ref")
+# ax[0].set_title("longitudinal speed")
+# ax[0].set_xlabel("time [s]")
+# ax[0].set_ylabel(" longitudinal speed [m/s]")
+# ax[0].legend()
 # ax[1].plot(env.t_controlperiod, env.u_acc, label="acceleration")
 # ax[1].set_title("longitudinal acceleration")
 # ax[1].set_xlabel("time [s]")
 # ax[1].set_ylabel("acceleration [m/s^2]")
 # ax[1].legend()
-color = [str(i/len(env.x_trajectory)*255.) for i in range(len(env.x_trajectory))]
-ax[1].scatter(env.x_trajectory, env.y_trajectory, label="trajectory")
-ax[1].set_title("trajectory")
-ax[1].set_xlabel("x [m]")
-ax[1].set_ylabel("y [m]")
-plt.savefig("longitudinal_speed_and_acceleration.png")
+# color = [i for i in range(len(env.x_trajectory))]
+# ax[1].scatter(env.x_trajectory, env.y_trajectory, c=color, label="trajectory")
+# ax[1].set_title("trajectory")
+# ax[1].set_xlabel("x [m]")
+# ax[1].set_ylabel("y [m]")
+# plt.savefig("longitudinal_speed_and_trajectory.png")
+# plt.show()
+
+plt.figure()
+plt.plot(env.t_stepsize, env.speed)
+plt.title("longitudinal speed")
+plt.xlabel("time [s]")
+plt.ylabel("longitudinal speed [m/s]")
+plt.savefig("longitudinal_speed.png")
+
+
+plt.figure()
+color = [i for i in range(len(env.x_trajectory))]
+plt.scatter(env.x_trajectory, env.y_trajectory, c=color,s=1, label="trajectory")
+plt.title("trajectory")
+plt.xlabel("x [m]")
+plt.ylabel("y [m]")
+plt.savefig("trajectory.png")
+
 plt.show()
 
