@@ -152,6 +152,11 @@ env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.conf
                                 config=env.config) #path_follow_mpc.py
 
 # driver = veh.ChDriver(env.my_hmmwv.GetVehicle()) #This command does NOT work. Never use ChDriver!
+ini_state = np.zeros(7)
+ini_state[0] = -100
+ini_state[-1] = 1
+throttle = 1
+env.reset(initial_state=ini_state, throttle=throttle)
 
 while lap_counter < num_laps:
     # Render scene

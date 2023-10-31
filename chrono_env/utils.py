@@ -84,16 +84,13 @@ def init_terrain(self, friction, patch_coords, waypoints):
     # for patch in patches:
     #     patch.SetTexture(veh.GetDataFile("terrain/textures/concrete.jpg"), 10, 10)
 
-    
-
-
     terrain.Initialize()
     return terrain, viz_patch
 
 def init_irrlicht_vis(ego_vehicle):
     # Create the vehicle Irrlicht interface
     vis = veh.ChWheeledVehicleVisualSystemIrrlicht()
-    vis.SetWindowTitle('Constant radius test')
+    vis.SetWindowTitle('MPC control')
     vis.SetWindowSize(1280, 1024)
     vis.SetHUDLocation(500, 20)
     vis.Initialize()

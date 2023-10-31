@@ -109,7 +109,17 @@ class ChronoEnv:
         else:
             self.speedPID_output = -brake
 
-        veh.GetSystem().StateScatter()
+        X = chrono.ChState()
+        V = chrono.ChStateDelta()
+        A = chrono.ChStateDelta()
+        time = 0.0
+
+        self.my_hmmwv.GetSystem()
+        self.my_hmmwv.GetSystem().StateSetup(X, V, A)
+        self.my_hmmwv.GetSystem().StateGather(X, V, np.double(time))
+
+        self.my_hmmwv.GetSystem().StateScatter(X, V, veh.GetSystem().GetChTime(), False)
+        self.my_hmmwv.GetSystem().Update(False)
 
 
 
@@ -135,6 +145,7 @@ class ChronoEnv:
         self.vis.Synchronize("", self.driver_inputs)
         
         vehicle_state = get_vehicle_state(self)
+        # print("vehicle_state", vehicle_state)
         # vehicle_state = utils.get_vehicle_state(self)
         # vehicle_state[2] = speedPID.GetCurrentSpeed() # vx from get_vehicle_state is a bit different from speedPID.GetCurrentSpeed()
         self.t_stepsize.append(self.time)

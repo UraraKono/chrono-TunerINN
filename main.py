@@ -35,6 +35,7 @@ from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
 from chrono_env.environment import ChronoEnv
+from chrono_env.utils import get_vehicle_state
 
 # --------------
 step_size = 2e-3
@@ -98,8 +99,8 @@ else:
     print('waypoints\n',waypoints.shape)
 
     # Convert waypoints to ChBezierCurve
-    curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.6) for waypoint in waypoints]
-    curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
+curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.6) for waypoint in waypoints]
+curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
     
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 
@@ -116,7 +117,7 @@ Ki = 0
 Kd = 0
 
 env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, 
-         waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], ini_pos=chrono.ChVectorD(-60, 0, 0.5))
+         waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], ini_pos=chrono.ChVectorD(0, 0, 0.5))
 
 # ---------------
 # Simulation loop
@@ -152,12 +153,24 @@ env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.conf
                                 config=env.config) #path_follow_mpc.py
 
 # driver = veh.ChDriver(env.my_hmmwv.GetVehicle()) #This command does NOT work. Never use ChDriver!
-
+speed    = 0
+steering = 0
 while lap_counter < num_laps:
     # Render scene
     env.render()
+    env.step(speed, steering)
 
-    env.step()
+    if (env.step_number % (env.control_step) == 0):
+        # env.my_hmmwv.state = get_vehicle_state(env)
+        u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, env.mpc_ox, env.mpc_oy = env.planner_ekin_mpc.plan(env.my_hmmwv.state)
+        u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
+        # print("u", u)
+        # env.target_speed = env.my_hmmwv[2] + u[0]*env.planner_ekin_mpc.config.DTK
+        # env.steering_output = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
+        speed = env.my_hmmwv.state[2] + u[0]*env.planner_ekin_mpc.config.DTK
+        steering = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
+
+    # env.get
 
 
     if env.time > t_end:
@@ -171,11 +184,16 @@ ax[0].set_title("longitudinal speed")
 ax[0].set_xlabel("time [s]")
 ax[0].set_ylabel(" longitudinal speed [m/s]")
 ax[0].legend()
-ax[1].plot(env.t_controlperiod, env.u_acc, label="acceleration")
-ax[0].set_title("longitudinal acceleration")
-ax[1].set_xlabel("time [s]")
-ax[1].set_ylabel("acceleration [m/s^2]")
-ax[1].legend()
+# ax[1].plot(env.t_controlperiod, env.u_acc, label="acceleration")
+# ax[1].set_title("longitudinal acceleration")
+# ax[1].set_xlabel("time [s]")
+# ax[1].set_ylabel("acceleration [m/s^2]")
+# ax[1].legend()
+color = [str(i/len(env.x_trajectory)*255.) for i in range(len(env.x_trajectory))]
+ax[1].scatter(env.x_trajectory, env.y_trajectory, label="trajectory")
+ax[1].set_title("trajectory")
+ax[1].set_xlabel("x [m]")
+ax[1].set_ylabel("y [m]")
 plt.savefig("longitudinal_speed_and_acceleration.png")
 plt.show()
 
