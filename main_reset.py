@@ -18,6 +18,11 @@
 # MPC solution (acceleration and steering speed) is applied to the vehicle.
 # The steering speed from MPC is fed into driver's steering input directly.
 # ChSpeedController is used to enforce the acceleration from MPC.
+# 
+# Implementing reset function together with chrono_env/environment_reset.py
+# But it doesn't work. 
+# self.my_hmmwv.GetSystem().StateGather and StateScatter don't work 
+# because they need double& type for time, but I don't know how to convert on python. 
 # =============================================================================
 
 import pychrono as chrono

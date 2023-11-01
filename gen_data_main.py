@@ -52,7 +52,7 @@ use_dyn_friction = False
 # constant_friction = 0.7
 # number_of_laps = 20
 SAVE_MODEL = True
-t_end = 100
+t_end = 20
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -173,9 +173,7 @@ while lap_counter < num_laps:
         # env.target_speed = env.my_hmmwv[2] + u[0]*env.planner_ekin_mpc.config.DTK
         # env.steering_output = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
         speed = env.my_hmmwv.state[2] + u[0]*env.planner_ekin_mpc.config.DTK
-        steering = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER # [-1,1]
-        # print("steering input", steering)
-        # steering = 1
+        steering = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER
 
         control_list.append(u) # saving acceleration and steering speed
         state_list.append(env.my_hmmwv.state)

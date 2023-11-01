@@ -1,6 +1,7 @@
 import pychrono as chrono
 import pychrono.vehicle as veh
 import numpy as np
+import math
 
 def init_vehicle(self):
     # Create the vehicle system
@@ -208,12 +209,14 @@ def get_vehicle_state(self):
     # print("   Rx_right:  ", Rx_right)
 
     # my_vehicle = veh.ChWheeledVehicle("my_vehicle")
-    my_driver = veh.ChDriver(vehicle.GetVehicle()) #This command does NOT work. Never use ChDriver!
+    # my_driver = veh.ChDriver(vehicle.GetVehicle()) #This command does NOT work. Never use ChDriver!
     # throttle = my_driver.GetThrottle()
     # steering = my_driver.GetSteering() # steering input [-1,+1]
     # braking = my_driver.GetBraking()
 
-    steering = veh.DriverInputs().m_steering
+    # steering = veh.DriverInputs().m_steering
+    steering = self.driver_inputs.m_steering
+    # print("steering ratio sriver inputs", steering)
     # inputs = my_driver.GetInputs()
 
     driver_glob_location = vehicle.GetVehicle().GetDriverPos()  # global location of the driver
@@ -233,6 +236,34 @@ def get_vehicle_state(self):
 
     return vehicle_state
 
+def get_toe_in(self, wheel_state_global): 
+    # Wheel normal expressed in global frame
+    wheel_normal = wheel_state_global.rot.GetYaxis()
+    # Terrain normal at wheel location expressed in global frame
+    Z_dir = self.terrain.GetNormal(wheel_state_global.pos)
+    # Longitudinal (heading) and lateral directions, in the terrain plane
+    wheel_normal_np = np.array([wheel_normal.x, wheel_normal.y, wheel_normal.z])
+    Z_dir_np = np.array([Z_dir.x, Z_dir.y, Z_dir.z])
+    X_dir_np = np.cross(wheel_normal_np, Z_dir_np) 
+    X_dir = chrono.ChVectorD(X_dir_np[0], X_dir_np[1], X_dir_np[2])
+    X_dir_np = np.array([X_dir.x, X_dir.y, X_dir.z])   
+    Y_dir_np = np.cross(Z_dir_np, X_dir_np)
+    Y_dir = chrono.ChVectorD(Y_dir_np[0], Y_dir_np[1], Y_dir_np[2])
+    rot = chrono.ChMatrix33D()
+    rot.Set_A_axis(X_dir, Y_dir, Z_dir)
+    tire_csys = chrono.ChCoordsysD(wheel_state_global.pos, rot.Get_A_quaternion()) 
+
+    # Express wheel normal in tire frame
+    n = tire_csys.TransformDirectionParentToLocal(wheel_normal)
+    print("n",n.x, n.y, n.z)
+
+    # Wheel normal in the vehicle frame
+    n_v = self.my_hmmwv.GetVehicle().GetTransform().TransformDirectionLocalToParent(wheel_normal)
+
+    # Toe-in
+    toe_in = math.atan2(n_v.x, n_v.y)
+
+    return toe_in
 
 class VehicleParameters:
     def __init__(self, vehicle):
