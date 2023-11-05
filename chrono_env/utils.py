@@ -10,7 +10,8 @@ def init_vehicle(self):
     my_hmmwv.SetChassisFixed(False)
     my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
     my_hmmwv.SetPowertrainType(veh.PowertrainModelType_SHAFTS)
-    my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
+    # my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
+    my_hmmwv.SetDriveType(veh.DrivelineTypeWV_AWD)
     my_hmmwv.SetSteeringType(veh.SteeringTypeWV_PITMAN_ARM)
     my_hmmwv.SetTireType(veh.TireModelType_TMEASY)
     my_hmmwv.SetTireStepSize(self.step_size) # self.step_size
@@ -36,12 +37,16 @@ def init_terrain(self, friction, patch_coords, waypoints):
 
     terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem()) # self.my_hmmwv
 
-    # Base Rigid terrain centered at the mean of the patches
-    patch_coords_mean = np.mean(patch_coords, axis=0)
+    # Base grass terrain
+    patch_coords_np = np.array(patch_coords)
+    min_x = min(patch_coords_np[:, 0])
+    max_x = max(patch_coords_np[:, 0])
+    min_y = min(patch_coords_np[:, 1])
+    max_y = max(patch_coords_np[:, 1])
     # If the z position is 0, the visualization blinks so much
-    base_pos = chrono.ChVectorD(int(patch_coords_mean[0]), int(patch_coords_mean[1]), int(patch_coords_mean[2])-0.05)
-    terrainLength = 200.0  # size in X direction
-    terrainWidth = 200.0   # size in Y direction
+    base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y)/2, -0.05)
+    terrainLength = max_x - min_x  # size in X direction
+    terrainWidth  = max_y - min_y  # size in Y direction
     patch_mat_base = chrono.ChMaterialSurfaceSMC()
     patch_mat_base.SetFriction(1.4)
     patch_mat_base.SetRestitution(0.01)
@@ -61,16 +66,18 @@ def init_terrain(self, friction, patch_coords, waypoints):
         coords = patch_coords[i]
         psi = waypoints[i, 3]
         if i == len(patch_mats) - 1:
-            s = waypoints[i, 0] - waypoints[i-1,0]
+            # s = waypoints[i, 0] - waypoints[i-1,0]
+            s=0
         else:    
             s = waypoints[i+1, 0] - waypoints[i,0]
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 1.2*s, s)
+        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 1.2*s, 10*s)
         patches.append(patch)
 
-    viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
+    # viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
+    viz_patch = None
     
     # Set color of patch based on friction value
     min_friction = min(friction)
@@ -246,6 +253,7 @@ def get_toe_in(self, wheel_state_global):
     Z_dir_np = np.array([Z_dir.x, Z_dir.y, Z_dir.z])
     X_dir_np = np.cross(wheel_normal_np, Z_dir_np) 
     X_dir = chrono.ChVectorD(X_dir_np[0], X_dir_np[1], X_dir_np[2])
+    X_dir.Normalize()
     X_dir_np = np.array([X_dir.x, X_dir.y, X_dir.z])   
     Y_dir_np = np.cross(Z_dir_np, X_dir_np)
     Y_dir = chrono.ChVectorD(Y_dir_np[0], Y_dir_np[1], Y_dir_np[2])
@@ -255,7 +263,7 @@ def get_toe_in(self, wheel_state_global):
 
     # Express wheel normal in tire frame
     n = tire_csys.TransformDirectionParentToLocal(wheel_normal)
-    print("n",n.x, n.y, n.z)
+    # print("n",n.x, n.y, n.z)
 
     # Wheel normal in the vehicle frame
     n_v = self.my_hmmwv.GetVehicle().GetTransform().TransformDirectionLocalToParent(wheel_normal)

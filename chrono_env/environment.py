@@ -38,7 +38,12 @@ class ChronoEnv:
         self.speedPID_output = 1.0
         self.target_speed = 0
         self.steering_output = 0
-        # self.target_steering_speed = 0
+        
+        self.toein_FL = []
+        self.toein_FR = []
+        self.toein_RL = []
+        self.toein_RR = []
+        self.steering_driver = []
 
         self.driver_inputs = veh.DriverInputs()
         self.driver_inputs.m_throttle = throttle_value
@@ -46,10 +51,6 @@ class ChronoEnv:
 
 
     def make(self, config, friction, patch_coords, waypoints, curve, speedPID_Gain=[0.4,0,0], ini_pos = chrono.ChVectorD(0, 0, 0.5)) -> None:
-        # self.my_hmmwv = utils.init_vehicle(self)
-        # self.terrain, self.viz_patch = utils.init_terrain(self, friction, patch_coords, waypoints)
-        # self.vis = utils.init_irrlicht_vis(self.my_hmmwv)
-        # self.vehicle_params = utils.VehicleParameters(self.my_hmmwv)
         self.ini_pos = ini_pos
         self.my_hmmwv = init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)
@@ -67,7 +68,7 @@ class ChronoEnv:
         self.path_asset.SetName("test path")
         self.path_asset.SetColor(chrono.ChColor(0.8, 0.0, 0.0))
         self.path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
+        # self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
 
         mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(self.config.TK + 1)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
         mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
@@ -77,7 +78,7 @@ class ChronoEnv:
         mpc_path_asset.SetName("MPC path")
         mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
         mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        self.viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
+        # self.viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
         self.mpc_path_asset = mpc_path_asset
 
         # ballS = self.vis.GetSceneManager().addSphereSceneNode(0.1)
@@ -137,14 +138,8 @@ class ChronoEnv:
         # Solve MPC every control_step
         if (self.step_number % (self.control_step) == 0) : 
             # print("step number", self.step_number)
-            # u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = self.planner_ekin_mpc.plan(
-            #     self.my_hmmwv.state)
-            # u[0] = u[0] / self.vehicle_params.MASS  # Force to acceleration
-            # self.target_speed = self.my_hmmwv.state[2] + u[0]*self.planner_ekin_mpc.config.DTK
-            # self.steering_output = self.driver_inputs.m_steering + u[1]*self.planner_ekin_mpc.config.DTK/self.config.MAX_STEER # Overshoots soooo much
             self.speedPID_output = self.speedPID.Advance(self.my_hmmwv.GetVehicle(), target_speed, self.step_size)
             # print('speed pid output', self.speedPID_output)
-            # self.u_acc.append(u[0])
             self.t_controlperiod.append(self.time)
             
             if self.mpc_ox is not None and not np.any(np.isnan(self.mpc_ox)):
@@ -164,31 +159,6 @@ class ChronoEnv:
 
         # Get wheel state
         wheel_state_global = self.my_hmmwv.GetVehicle().GetWheel(0,0).GetState() #in global frame
-        # # Wheel normal expressed in global frame
-        # wheel_normal = wheel_state_global.rot.GetYaxis()
-        # # Terrain normal at wheel location expressed in global frame
-        # Z_dir = self.terrain.GetNormal(wheel_state_global.pos)
-        # # Longitudinal (heading) and lateral directions, in the terrain plane
-        # wheel_normal_np = np.array([wheel_normal.x, wheel_normal.y, wheel_normal.z])
-        # Z_dir_np = np.array([Z_dir.x, Z_dir.y, Z_dir.z])
-        # X_dir_np = np.cross(wheel_normal_np, Z_dir_np) 
-        # X_dir = chrono.ChVectorD(X_dir_np[0], X_dir_np[1], X_dir_np[2])
-        # X_dir_np = np.array([X_dir.x, X_dir.y, X_dir.z])   
-        # Y_dir_np = np.cross(Z_dir_np, X_dir_np)
-        # Y_dir = chrono.ChVectorD(Y_dir_np[0], Y_dir_np[1], Y_dir_np[2])
-        # rot = chrono.ChMatrix33D()
-        # rot.Set_A_axis(X_dir, Y_dir, Z_dir)
-        # tire_csys = chrono.ChCoordsysD(wheel_state_global.pos, rot.Get_A_quaternion()) 
-
-        # # Express wheel normal in tire frame
-        # n = tire_csys.TransformDirectionParentToLocal(wheel_normal)
-        # print("n",n.x, n.y, n.z)
-
-        # # Wheel normal in the vehicle frame
-        # n_v = self.my_hmmwv.GetVehicle().GetTransform().TransformDirectionLocalToParent(wheel_normal)
-
-        # # Toe-in
-        # toe_in = math.atan2(n_v.x, n_v.y)
         toe_in = get_toe_in(self, wheel_state_global)
 
         wheel_state_global_2 = self.my_hmmwv.GetVehicle().GetWheel(0,1).GetState() #in global frame
@@ -196,7 +166,15 @@ class ChronoEnv:
 
         wheel_state_global_3 = self.my_hmmwv.GetVehicle().GetWheel(1,0).GetState() #in global frame
         toe_in_3 = get_toe_in(self, wheel_state_global_3)
-        print("toe_in FL",toe_in*180/np.pi,"FR",toe_in_2*180/np.pi,"RL",toe_in_3*180/np.pi, "steering", self.my_hmmwv.state[-1]*180/np.pi)
+        wheel_state_global_4 = self.my_hmmwv.GetVehicle().GetWheel(1,1).GetState() #in global frame
+        toe_in_4 = get_toe_in(self, wheel_state_global_4)
+
+        self.toein_FL.append(toe_in*180/np.pi)
+        self.toein_FR.append(toe_in_2*180/np.pi)
+        self.toein_RL.append(toe_in_3*180/np.pi)
+        self.toein_RR.append(toe_in_4*180/np.pi)
+        self.steering_driver.append(self.my_hmmwv.state[-1]*180/np.pi)
+        # print("toe_in Front Left",toe_in*180/np.pi,"FR",toe_in_2*180/np.pi,"RL",toe_in_3*180/np.pi, "steering", self.my_hmmwv.state[-1]*180/np.pi)
         # print("toe_in",toe_in, "steering", self.my_hmmwv.state[-1]/self.my_hmmwv.GetVehicle().GetMaxSteeringAngle())
 
     def render(self) -> None:

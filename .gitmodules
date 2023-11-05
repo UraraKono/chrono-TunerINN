@@ -1,0 +1,3 @@
+[submodule "f1tenth-racetrack"]
+	path = f1tenth-racetrack
+	url = git@github.com:zzangupenn/f1tenth_racetracks.git
