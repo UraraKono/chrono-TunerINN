@@ -26,7 +26,10 @@ def init_vehicle(self):
     self.my_hmmwv = my_hmmwv
     return my_hmmwv
 
-def init_terrain(self, friction, patch_coords, waypoints):
+def init_terrain(self, friction, reduced_waypoints):
+    # Define the patch coordinates
+    patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in reduced_waypoints]
+
     rest_values = [0.01] * len(patch_coords)
     young_modulus_values = [2e7] * len(patch_coords)
     patch_mats = [chrono.ChMaterialSurfaceSMC() for _ in range(len(patch_coords))]
@@ -45,8 +48,8 @@ def init_terrain(self, friction, patch_coords, waypoints):
     max_y = max(patch_coords_np[:, 1])
     # If the z position is 0, the visualization blinks so much
     base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y)/2, -0.05)
-    terrainLength = max_x - min_x  # size in X direction
-    terrainWidth  = max_y - min_y  # size in Y direction
+    terrainLength = max_x - min_x + 20  # size in X direction
+    terrainWidth  = max_y - min_y + 20 # size in Y direction
     patch_mat_base = chrono.ChMaterialSurfaceSMC()
     patch_mat_base.SetFriction(1.4)
     patch_mat_base.SetRestitution(0.01)
@@ -64,16 +67,18 @@ def init_terrain(self, friction, patch_coords, waypoints):
     patches = []
     for i, patch_mat in enumerate(patch_mats):
         coords = patch_coords[i]
-        psi = waypoints[i, 3]
+        psi = reduced_waypoints[i, 3]
         if i == len(patch_mats) - 1:
-            # s = waypoints[i, 0] - waypoints[i-1,0]
+            # s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
             s=0
         else:    
-            s = waypoints[i+1, 0] - waypoints[i,0]
+            s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
+
+        print("s", s)
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 1.2*s, 10*s)
+        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 10, s*self.reduced_rate*1.5)
         patches.append(patch)
 
     # viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)

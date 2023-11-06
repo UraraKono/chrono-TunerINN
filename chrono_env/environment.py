@@ -50,11 +50,11 @@ class ChronoEnv:
         self.driver_inputs.m_braking = 0.0
 
 
-    def make(self, config, friction, patch_coords, waypoints, curve, speedPID_Gain=[0.4,0,0], ini_pos = chrono.ChVectorD(0, 0, 0.5)) -> None:
+    def make(self, config, friction, waypoints, reduced_waypoints, curve, speedPID_Gain=[0.4,0,0], ini_pos = chrono.ChVectorD(0, 0, 0.5)) -> None:
         self.ini_pos = ini_pos
         self.my_hmmwv = init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)
-        self.terrain, self.viz_patch = init_terrain(self, friction, patch_coords, waypoints)
+        self.terrain, self.viz_patch = init_terrain(self, friction, reduced_waypoints)
         self.vis = init_irrlicht_vis(self.my_hmmwv)
         self.vehicle_params = VehicleParameters(self.my_hmmwv)
         self.config = config
