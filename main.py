@@ -18,6 +18,9 @@
 # MPC solution (acceleration and steering speed) is applied to the vehicle.
 # The steering speed from MPC is fed into driver's steering input directly.
 # ChSpeedController is used to enforce the acceleration from MPC.
+# 
+# Uses the custom_track for the maps in /maps directory. 
+# Not using f1tenth-racetrack
 # =============================================================================
 
 import pychrono as chrono
@@ -123,8 +126,9 @@ Kp = 0.4*10
 Ki = 0
 Kd = 0
 
-env.make(config=MPCConfigEXT(), friction=friction, patch_coords=patch_coords, 
-         waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], ini_pos=chrono.ChVectorD(5, 5, 0.5))
+env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,
+         reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], 
+         ini_pos=chrono.ChVectorD(waypoints[0,1], waypoints[0,2], 0.5))
 
 # ---------------
 # Simulation loop

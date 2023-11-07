@@ -16,6 +16,7 @@ class ChronoEnv:
         self.vehicle_params = None
         self.config = None
         self.mpc_ox = None
+        self.reduced_rate = 1
 
         # Time interval between two render frames
         self.render_step_size = 1.0 / 50  # FPS = 50 frame per second
