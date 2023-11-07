@@ -20,4 +20,8 @@ conda install pychrono-8.0.0-py39_1.tar.bz2
 
 * MPC_VEH_HMMWV.py: It uses steering controller from chrono, which uses position feedback. So it's not real steering feedback.
 
+## chrono_env usage
+
+* Get the state variables: Every time env.step() is called, the state of the vehicle (env.my_hmmwv.state) is updated using 'get_vehicle_state' in chrono_env/utils.py. 
+
 

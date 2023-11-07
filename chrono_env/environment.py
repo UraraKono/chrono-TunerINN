@@ -116,9 +116,7 @@ class ChronoEnv:
         self.my_hmmwv.Synchronize(self.time, self.driver_inputs, self.terrain)
         self.vis.Synchronize("", self.driver_inputs)
         
-        # vehicle_state = get_vehicle_state(self)
         self.my_hmmwv.state = get_vehicle_state(self)
-        # print("vehicle_state", self.my_hmmwv.state)
         self.t_stepsize.append(self.time)
         self.speed.append(self.my_hmmwv.state[2])
         self.speed_ref.append(self.target_speed)
