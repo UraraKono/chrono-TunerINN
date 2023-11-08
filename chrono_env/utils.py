@@ -78,7 +78,7 @@ def init_terrain(self, friction, reduced_waypoints):
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 10, s*self.reduced_rate*1.5)
+        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 20, s*self.reduced_rate*1.5)
         patches.append(patch)
 
     # viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
