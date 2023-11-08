@@ -58,6 +58,9 @@ docs/_build/
 # Ignore Pycharm and Clion folder
 .idea/
 
+# Ignore the files inside 'data' directory
+data/*
+
 # Custom
 dataset*
 log*

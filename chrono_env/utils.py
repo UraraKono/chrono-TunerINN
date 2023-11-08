@@ -78,7 +78,7 @@ def init_terrain(self, friction, reduced_waypoints):
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 10, s*self.reduced_rate*1.5)
+        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 20, s*self.reduced_rate*1.5)
         patches.append(patch)
 
     # viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
@@ -89,7 +89,12 @@ def init_terrain(self, friction, reduced_waypoints):
     max_friction = max(friction)
     for i, patch in enumerate(patches):
         # print(friction[i])
-        RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
+        if max_friction == min_friction:
+            RGB_value = 1 - friction[i]/1.5
+            if RGB_value < 0:
+                RGB_value = 0
+        else:
+            RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
         # RGB_value = 1 - (friction[i] - 0.4)
         # print(RGB_value, friction[i])
         patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
@@ -277,6 +282,23 @@ def get_toe_in(self, wheel_state_global):
     toe_in = math.atan2(n_v.x, n_v.y)
 
     return toe_in
+
+def reset_config(self, vehicle_params):
+    print("self.config.MASS",self.config.MASS)
+    self.config.LENGTH      = vehicle_params.LENGTH
+    self.config.WIDTH       = vehicle_params.WIDTH
+    self.config.LR          = vehicle_params.LR
+    self.config.LF          = vehicle_params.LF
+    self.config.WB          = vehicle_params.WB
+    self.config.MIN_STEER   = vehicle_params.MIN_STEER
+    self.config.MAX_STEER   = vehicle_params.MAX_STEER
+    self.config.MAX_STEER_V = vehicle_params.MAX_STEER_V
+    self.config.MAX_SPEED   = vehicle_params.MAX_SPEED
+    self.config.MIN_SPEED   = vehicle_params.MIN_SPEED
+    self.config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
+    self.config.MAX_DECEL   = vehicle_params.MAX_DECEL
+    self.config.MASS        = vehicle_params.MASS
+    print("self.config.MASS",self.config.MASS)
 
 class VehicleParameters:
     def __init__(self, vehicle):

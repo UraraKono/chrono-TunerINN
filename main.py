@@ -39,7 +39,7 @@ from models.configs import *
 from helpers.closest_point import *
 from helpers.track import Track
 from chrono_env.environment import ChronoEnv
-from chrono_env.utils import get_vehicle_state
+from chrono_env.utils import *
 
 # --------------
 step_size = 2e-3
@@ -47,7 +47,7 @@ throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 # Program parameters
 model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
-map_name = 'SaoPaulo'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
+map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
 use_dyn_friction = False
 # gp_mpc_type = 'frenet'  # cartesian, frenet
 # render_every = 30  # render graphics every n sim steps
@@ -59,11 +59,6 @@ t_end = 400
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
-
-# Creating the single-track Motion planner and Controller
-
-# Init Pure-Pursuit regulator
-work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 10.6461887897713965, 'vgain': 1.0}
 
 # Load map config file
 with open('configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- SaoPaulo
@@ -114,7 +109,8 @@ curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
     
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 
-friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
+# friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
+friction = [0.7 for i in range(waypoints.shape[0])]
 
 # Define the patch coordinates
 patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
@@ -122,7 +118,10 @@ patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
 # Kp = 0.6
 # Ki = 0.2
 # Kd = 0.3
-Kp = 0.4*10
+# Kp = 0.4*10
+# Ki = 0
+# Kd = 0
+Kp = 3.8
 Ki = 0
 Kd = 0
 
@@ -145,20 +144,7 @@ lap_counter = 0
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
 
-# Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
-env.config.LENGTH      = env.vehicle_params.LENGTH
-env.config.WIDTH       = env.vehicle_params.WIDTH
-env.config.LR          = env.vehicle_params.LR
-env.config.LF          = env.vehicle_params.LF
-env.config.WB          = env.vehicle_params.WB
-env.config.MIN_STEER   = env.vehicle_params.MIN_STEER
-env.config.MAX_STEER   = env.vehicle_params.MAX_STEER
-env.config.MAX_STEER_V = env.vehicle_params.MAX_STEER_V
-env.config.MAX_SPEED   = env.vehicle_params.MAX_SPEED
-env.config.MIN_SPEED   = env.vehicle_params.MIN_SPEED
-env.config.MAX_ACCEL   = env.vehicle_params.MAX_ACCEL
-env.config.MAX_DECEL   = env.vehicle_params.MAX_DECEL
-env.config.MASS        = env.vehicle_params.MASS    
+reset_config(env, env.vehicle_params)  
 
 env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config), 
                                 waypoints=waypoints,
@@ -236,4 +222,3 @@ plt.ylabel("toe-in angle [deg]")
 plt.savefig("toe-in.png")
 
 plt.show()
-
