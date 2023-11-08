@@ -43,13 +43,13 @@ from chrono_env.data_gen_utils import load_map, friction_func
 from chrono_env.frenet_utils import cartesian_to_frenet, frenet_to_cartesian, centerline_to_frenet
 
 # --------------
-step_size = 2e-3
+step_size = 2e-3 #simulation step size
 throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 # Program parameters
-model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
+# model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
 # map_name = 'SaoPaulo'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
-use_dyn_friction = False
+# use_dyn_friction = False
 # gp_mpc_type = 'frenet'  # cartesian, frenet
 # render_every = 30  # render graphics every n sim steps
 # constant_speed = True
@@ -63,15 +63,7 @@ map_ind = 39 # 39 Zandvoort_raceline
 
 env = ChronoEnv(step_size, throttle_value)
 
-# Creating the single-track Motion planner and Controller
-
-# Init Pure-Pursuit regulator
-work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 10.6461887897713965, 'vgain': 1.0}
-
 # Load map config file
-# with open('configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- SaoPaulo
-#     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
-# conf = Namespace(**conf_dict)
 with open('maps/config_example_map.yaml') as file:
     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 conf = Namespace(**conf_dict)
@@ -79,46 +71,7 @@ map_info = np.genfromtxt('maps/map_info.txt', delimiter='|', dtype='str')[map_in
 waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=7, reverse=False)
 print("waypoints\n",waypoints.shape)
 
-# if not map_name == 'custom_track':
-
-#     if use_dyn_friction:
-#         tpamap_name = './maps/rounded_rectangle/rounded_rectangle_tpamap.csv'
-#         tpadata_name = './maps/rounded_rectangle/rounded_rectangle_tpadata.json'
-
-#         tpamap = np.loadtxt(tpamap_name, delimiter=';', skiprows=1)
-
-#         tpadata = {}
-#         with open(tpadata_name) as f:
-#             tpadata = json.load(f)
-
-#     # raceline = np.loadtxt(conf.wpt_path, delimiter=";", skiprows=3)
-#     # waypoints = np.array(raceline)
-
-#     # Rotate the map for 90 degrees in anti-clockwise direction 
-#     # to match the map with the vehicle's initial orientation
-#     rotation_matrix = np.array([[0, 1], [-1, 0]])
-#     waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
-
-# else:
-#     centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 50, 2 * 25 * np.pi + 50, 2 * 25 * np.pi + 100],
-#                                       [0.0, 0.0, -50.0, -50.0, 0.0],
-#                                       [0.0, 50.0, 50.0, 0.0, 0.0],
-#                                       [1 / 25, 0.0, 1 / 25, 0.0, 1 / 25],
-#                                       [0.0, np.pi, np.pi, 0.0, 0.0]]).T
-
-#     centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 25, 25 * (3.0 * np.pi / 2.0) + 25, 25 * (3.0 * np.pi / 2.0) + 50,
-#                                         25 * (2.0 * np.pi + np.pi / 2.0) + 50, 25 * (2.0 * np.pi + np.pi / 2.0) + 125, 25 * (3.0 * np.pi) + 125,
-#                                         25 * (3.0 * np.pi) + 200],
-#                                         [0.0, 0.0, -25.0, -50.0, -50.0, -100.0, -100.0, -75.0, 0.0],
-#                                         [0.0, 50.0, 50.0, 75.0, 100.0, 100.0, 25.0, 0.0, 0.0],
-#                                         [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
-#                                         [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
-
-#     track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=15.0)
-#     waypoints = track.get_reference_trajectory()
-#     print('waypoints\n',waypoints.shape)
-
-    # Convert waypoints to ChBezierCurve
+# Convert waypoints to ChBezierCurve
 curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.6) for waypoint in waypoints]
 curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
 
@@ -134,16 +87,13 @@ else: # raceline
 rotation_matrix = np.array([[0, 1], [-1, 0]])
 waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
 
-
-reduced_waypoints = waypoints[::env.reduced_rate, :] # every 10 waypoints
+# sample every env.reduced_rate 10 waypoints for patch in visualization
+reduced_waypoints = waypoints[::env.reduced_rate, :] 
 s_max = np.max(reduced_waypoints[:, 0])
 friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
-
+# friction = [0.4 + i/waypoints.shape[0] for i in range(reduced_waypoints.shape[0])]
 
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
-
-# friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
-
 
 # Kp = 0.6
 # Ki = 0.2
@@ -171,6 +121,7 @@ lap_counter = 0
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
 
+# Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
 env.config.LENGTH      = env.vehicle_params.LENGTH
 env.config.WIDTH       = env.vehicle_params.WIDTH
 env.config.LR          = env.vehicle_params.LR
@@ -202,7 +153,8 @@ while lap_counter < num_laps:
     env.render()
 
     if (env.step_number % (env.control_step) == 0):
-        # env.my_hmmwv.state = get_vehicle_state(env)
+        # Solve MPC problem
+        # env.my_hmmwv.state = get_vehicle_state(env) 
         u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, env.mpc_ox, env.mpc_oy = env.planner_ekin_mpc.plan(env.my_hmmwv.state)
         u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
         # print("u", u)

@@ -145,6 +145,7 @@ lap_counter = 0
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
 
+# Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
 env.config.LENGTH      = env.vehicle_params.LENGTH
 env.config.WIDTH       = env.vehicle_params.WIDTH
 env.config.LR          = env.vehicle_params.LR
