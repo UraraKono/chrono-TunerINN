@@ -56,11 +56,11 @@ use_dyn_friction = False
 # gp_mpc_type = 'frenet'  # cartesian, frenet
 # render_every = 30  # render graphics every n sim steps
 constant_speed = True
-constant_speed_ref = 40
+constant_speed_ref = 50
 constant_friction = 0.7
 number_of_laps = 3
 SAVE_MODEL = True
-t_end = 400
+t_end = 250
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -221,11 +221,21 @@ while env.lap_counter < num_laps:
 
     vehicle_state = env.my_hmmwv.state
     pose_frenet = track.cartesian_to_frenet(np.array([vehicle_state[0], vehicle_state[1], vehicle_state[3]]))  # np.array([x,y,yaw])
-    # print(f"X: {vehicle_state[0]}  Y: {vehicle_state[1]}  S: {pose_frenet[0]}")
+
+    vehicle_state_frenet = np.array([pose_frenet[0],  # s
+                                    pose_frenet[1],  # ey
+                                    vehicle_state[2],  # vx
+                                    pose_frenet[2],  # eyaw
+                                    vehicle_state[4],  # vy
+                                    vehicle_state[-2],  # yaw rate
+                                    vehicle_state[-1],  # steering angle
+                                    ])
+    print(f"X: {vehicle_state[0]}  Y: {vehicle_state[1]}  S: {pose_frenet[0]}")
 
     tracking_error = 0.0
 
     if gp_model_trained <= 1:
+    # if gp_model_trained < 1:
         # just run ext_kinematic for the first 2 laps (gp_model_trained=0 or 1)
         print("Initial model")
         if model_in_first_lap == "ext_kinematic":
@@ -233,18 +243,7 @@ while env.lap_counter < num_laps:
                 vehicle_state)
             u[0] = u[0] / planner_ekin_mpc.config.MASS  # Force to acceleration
     else:
-        # use the learned GP models using planner_gp_mpc_frenet
-        pose_frenet = track.cartesian_to_frenet(np.array([vehicle_state[0], vehicle_state[1], vehicle_state[3]]))  # np.array([x,y,yaw])
-
-        vehicle_state_frenet = np.array([pose_frenet[0],  # s
-                                            pose_frenet[1],  # ey
-                                            vehicle_state[2],  # vx
-                                            pose_frenet[2],  # eyaw
-                                            vehicle_state[4],  # vy
-                                            vehicle_state[-2],  # yaw rate
-                                            vehicle_state[-1],  # steering angle
-                                            ])
-
+        print("gp_model_trained",gp_model_trained)
         u, mpc_ref_path_s, mpc_ref_path_ey, mpc_pred_s, mpc_pred_ey, mpc_os, mpc_oey = planner_gp_mpc_frenet.plan(
             vehicle_state_frenet)
 
@@ -270,6 +269,9 @@ while env.lap_counter < num_laps:
     speed = vehicle_state[2] + u[0]*planner_ekin_mpc.config.DTK
     steering = env.driver_inputs.m_steering + u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # [-1,1]
     # print("speed input", speed, "steering input", steering)
+
+    # Forcing positive speed
+    speed = constant_speed_ref
 
     # Run the simulation for one control period
     for i in range(int(env.control_step)):
@@ -327,7 +329,8 @@ while env.lap_counter < num_laps:
         planner_gp_mpc_frenet.model.add_new_datapoint(X_sample, Y_sample)
         gather_data = 0
 
-    if env.lap_counter == 1 or env.lap_counter == 2:
+    if env.lap_counter - 1 == gp_model_trained:
+    # if (env.lap_counter - 1 == gp_model_trained) and (env.lap_counter == 1):
         print('lap counter', env.lap_counter)
         gp_model_trained += 1
         print("GP training...")
@@ -367,7 +370,7 @@ with open('log_dataset', 'w') as f:
     json.dump(log_dataset, f)
 
 if SAVE_MODEL:
-    planner_gp_mpc_frenet.model.save_model()
+    # planner_gp_mpc_frenet.model.save_model() #'GPEnsembleModelFrenet' object has no attribute 'save_model'
     now = datetime.now()
     # dd/mm/YY H:M:S
     dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")

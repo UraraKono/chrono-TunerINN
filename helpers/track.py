@@ -106,7 +106,12 @@ class Track:
     def get_curvature_at_s(self, s):
         # trajectory ... s_m; x_m; y_m; psi_rad; kappa_radpm; vx_mps; ax_mps2
         diff = self.trajectory[:, 0] - s
-        segment_id = np.argmax(diff[diff <= 0])  # should be always id of the point that has smaller s than the point
+        if len(diff[diff <= 0]) == 0:
+            print(f"Error: s = {s} is out of range of the track in get_curvature_at_s")
+            segment_id = 0
+        else:
+            segment_id = np.argmax(diff[diff <= 0])
+        # segment_id = np.argmax(diff[diff <= 0])  # should be always id of the point that has smaller s than the point
         curvature = self.trajectory[segment_id, 4]
         return curvature
 
@@ -298,8 +303,12 @@ class Track:
         diff = self.trajectory[:, 0] - pose[0]
 
         # print(diff)
-
-        segment_id = np.argmax(diff[diff <= 0])  # should be always id of the point that has smaller s than the point
+        if len(diff[diff <= 0]) == 0:
+            print(f"Error: s = {pose[0]} is out of range of the track in get_curvature_at_s")
+            segment_id = 0
+        else:
+            segment_id = np.argmax(diff[diff <= 0])
+        # segment_id = np.argmax(diff[diff <= 0])  # should be always id of the point that has smaller s than the point
 
         # print(segment_id)
         # print(self.trajectory[segment_id, :])
