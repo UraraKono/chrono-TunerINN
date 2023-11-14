@@ -19,7 +19,7 @@
 # The steering speed from MPC is fed into driver's steering input directly.
 # ChSpeedController is used to enforce the acceleration from MPC.
 # 
-# Uses the custom_track for the maps in /maps directory. 
+# This file uses the maps in /maps directory if map_name == 'custom_track' 
 # Not using f1tenth-racetrack
 # =============================================================================
 
@@ -40,6 +40,7 @@ from helpers.closest_point import *
 from helpers.track import Track
 from chrono_env.environment import ChronoEnv
 from chrono_env.utils import *
+from chrono_env.data_gen_utils import friction_func
 
 # --------------
 step_size = 2e-3
@@ -52,10 +53,10 @@ use_dyn_friction = False
 # gp_mpc_type = 'frenet'  # cartesian, frenet
 # render_every = 30  # render graphics every n sim steps
 # constant_speed = True
-# constant_friction = 0.7
+constant_friction = 0.7
 # number_of_laps = 20
 SAVE_MODEL = True
-t_end = 400
+t_end = 60
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -104,13 +105,16 @@ else:
     print('waypoints\n',waypoints.shape)
 
     # Convert waypoints to ChBezierCurve
-curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.6) for waypoint in waypoints]
+curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.8) for waypoint in waypoints]
 curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
     
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 
 # friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
-friction = [0.7 for i in range(waypoints.shape[0])]
+friction = [constant_friction for i in range(waypoints.shape[0])]
+# reduced_waypoints = waypoints[::env.reduced_rate, :] 
+# s_max = np.max(reduced_waypoints[:, 0])
+# friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
 
 # Define the patch coordinates
 patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
@@ -118,16 +122,20 @@ patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
 # Kp = 0.6
 # Ki = 0.2
 # Kd = 0.3
-# Kp = 0.4*10
-# Ki = 0
-# Kd = 0
-Kp = 3.8
+Kp = 5
 Ki = 0
 Kd = 0
+# Kp = 3.8
+# Ki = 0
+# Kd = 0
 
-env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,
-         reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], 
-         ini_pos=chrono.ChVectorD(waypoints[0,1], waypoints[0,2], 0.5))
+# env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,
+#          reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], 
+#          ini_pos=chrono.ChVectorD(waypoints[0,1], waypoints[0,2], 0.5))
+
+env.make(config=MPCConfigEXT(), friction=friction, 
+         reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd],
+         steeringPID_Gain=[1,0,0],x0=waypoints[0,1], y0=waypoints[0,2], w0=0)
 
 # ---------------
 # Simulation loop
@@ -168,10 +176,10 @@ while lap_counter < num_laps:
         u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
         # print("u", u)
         speed = env.my_hmmwv.state[2] + u[0]*env.planner_ekin_mpc.config.DTK
-        steering = env.driver_inputs.m_steering + u[1]*env.planner_ekin_mpc.config.DTK/env.config.MAX_STEER # [-1,1]
+        steering = env.driver_inputs.m_steering*env.config.MAX_STEER + u[1]*env.planner_ekin_mpc.config.DTK # [deg]
         # print("steering input", steering)
         # Debugging for toe-in angle
-        # steering = 1
+        # steering = 1*env.config.MAX_STEER
         # speed = 3.0
 
         control_list.append(u) # saving acceleration and steering speed

@@ -211,4 +211,7 @@ def centerline_to_frenet(trajectory, velocity=5.0):
         # Save to output
         output[i, :] = np.array([s, trajectory[i, 0], trajectory[i, 1], psi, kappa, vx, ax])
 
+    psi_0 = np.arctan2((trajectory[-1, 1] - trajectory[0, 1]), (trajectory[-1, 0] - trajectory[0, 0]))
+    output[0, 3] = psi_0
+
     return output

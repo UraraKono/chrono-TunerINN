@@ -24,50 +24,41 @@
 
 import pychrono as chrono
 import pychrono.vehicle as veh
-# import pychrono.irrlicht as chronoirr
+import pychrono.irrlicht as chronoirr
 import numpy as np
-import json
 import matplotlib.pyplot as plt
 import yaml
 import time
 from argparse import Namespace
-from regulators.pure_pursuit import *
-from regulators.path_follow_mpc import *
-from models.extended_kinematic import ExtendedKinematicModel
-from models.configs import *
-from helpers.closest_point import *
-from helpers.track import Track
+from EGP.regulators.pure_pursuit import *
+from EGP.regulators.path_follow_mpc import *
+from EGP.models.extended_kinematic import ExtendedKinematicModel
+from EGP.models.configs import *
+from EGP.helpers.closest_point import *
+from EGP.helpers.track import Track
 from chrono_env.environment import ChronoEnv
-from chrono_env.utils import get_vehicle_state
+from chrono_env.utils import *
 from chrono_env.data_gen_utils import load_map, friction_func
-from chrono_env.frenet_utils import cartesian_to_frenet, frenet_to_cartesian, centerline_to_frenet
+from chrono_env.frenet_utils import centerline_to_frenet
 
 # --------------
 step_size = 2e-3 #simulation step size
 throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
-# Program parameters
-# model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
-# currently only "custom_track" works for frenet
-# map_name = 'SaoPaulo'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
-# use_dyn_friction = False
-# gp_mpc_type = 'frenet'  # cartesian, frenet
-# render_every = 30  # render graphics every n sim steps
-# constant_speed = True
-# constant_friction = 0.7
-# number_of_laps = 20
 SAVE_MODEL = True
 MAP_DIR = './f1tenth-racetrack/'
-t_end = 400
-map_ind = 39 # 39 Zandvoort_raceline
+SAVE_DIR = './data/'
+t_end = 60
+map_ind = 16 # 39 Zandvoort_raceline
+ref_vx = 10
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
 
 # Load map config file
-with open('maps/config_example_map.yaml') as file:
+with open('EGP/maps/config_example_map.yaml') as file:
     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 conf = Namespace(**conf_dict)
-map_info = np.genfromtxt('maps/map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
+map_info = np.genfromtxt('map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
 waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=7, reverse=False)
 print("waypoints\n",waypoints.shape)
 
@@ -84,8 +75,10 @@ else: # raceline
 
 # Rotate the map for 90 degrees in anti-clockwise direction 
 # to match the map with the vehicle's initial orientation
-rotation_matrix = np.array([[0, 1], [-1, 0]])
-waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
+# rotation_matrix = np.array([[0, 1], [-1, 0]])
+# waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
+
+waypoints[:, -2] = ref_vx
 
 # sample every env.reduced_rate 10 waypoints for patch in visualization
 reduced_waypoints = waypoints[::env.reduced_rate, :] 
@@ -98,13 +91,14 @@ veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 # Kp = 0.6
 # Ki = 0.2
 # Kd = 0.3
-Kp = 0.4*10
-Ki = 0
+Kp = 20
+Ki = 5
 Kd = 0
 
-env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints, 
+# base_patch = env.make(config=MPCConfigEXT(), friction=friction, 
+env.make(config=MPCConfigEXT(), friction=friction, 
          reduced_waypoints=reduced_waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd],
-           ini_pos=chrono.ChVectorD(reduced_waypoints[0,1], reduced_waypoints[0,2], 0.5))
+         x0=reduced_waypoints[0,1], y0=reduced_waypoints[0,2], w0=waypoints[0,3]-np.pi)
 
 # ---------------
 # Simulation loop
@@ -114,27 +108,11 @@ env.my_hmmwv.GetVehicle().EnableRealtime(True)
 num_laps = 3  # Number of laps
 lap_counter = 0
 
-# # Define the starting point and a tolerance distance
-# # starting_point = chrono.ChVectorD(-70, 0, 0.6)  # Replace with the actual starting point coordinates
-# tolerance = 5  # Tolerance distance (in meters) to consider the vehicle has crossed the starting point
-
 # Reset the simulation time
 env.my_hmmwv.GetSystem().SetChTime(0)
 
 # Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
-env.config.LENGTH      = env.vehicle_params.LENGTH
-env.config.WIDTH       = env.vehicle_params.WIDTH
-env.config.LR          = env.vehicle_params.LR
-env.config.LF          = env.vehicle_params.LF
-env.config.WB          = env.vehicle_params.WB
-env.config.MIN_STEER   = env.vehicle_params.MIN_STEER
-env.config.MAX_STEER   = env.vehicle_params.MAX_STEER
-env.config.MAX_STEER_V = env.vehicle_params.MAX_STEER_V
-env.config.MAX_SPEED   = env.vehicle_params.MAX_SPEED
-env.config.MIN_SPEED   = env.vehicle_params.MIN_SPEED
-env.config.MAX_ACCEL   = env.vehicle_params.MAX_ACCEL
-env.config.MAX_DECEL   = env.vehicle_params.MAX_DECEL
-env.config.MASS        = env.vehicle_params.MASS    
+reset_config(env, env.vehicle_params) 
 
 env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config), 
                                 waypoints=waypoints,
@@ -163,7 +141,7 @@ while lap_counter < num_laps:
         # print("steering input", steering)
         # Debugging for toe-in angle
         # steering = 1
-        speed = 10.0
+        # speed = 10.0
 
         control_list.append(u) # saving acceleration and steering speed
         state_list.append(env.my_hmmwv.state)
@@ -195,6 +173,7 @@ plt.savefig("longitudinal_speed.png")
 plt.figure()
 color = [i for i in range(len(env.x_trajectory))]
 plt.scatter(env.x_trajectory, env.y_trajectory, c=color,s=1, label="trajectory")
+plt.scatter(reduced_waypoints[0,1],reduced_waypoints[0,2], c='r',s=5, label="start")
 plt.title("trajectory")
 plt.xlabel("x [m]")
 plt.ylabel("y [m]")

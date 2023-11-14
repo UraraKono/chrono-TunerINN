@@ -8,10 +8,13 @@ def init_vehicle(self):
     my_hmmwv = veh.HMMWV_Full()
     my_hmmwv.SetContactMethod(chrono.ChContactMethod_SMC)
     my_hmmwv.SetChassisFixed(False)
-    my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
+    # my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
+    # my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
+    self.ini_pos = chrono.ChVectorD(self.x0, self.y0, 0.5)
+    ini_quat = chrono.Q_from_AngZ(self.w0)
+    my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos, ini_quat))
     my_hmmwv.SetPowertrainType(veh.PowertrainModelType_SHAFTS)
-    # my_hmmwv.SetDriveType(veh.DrivelineTypeWV_RWD)
-    my_hmmwv.SetDriveType(veh.DrivelineTypeWV_AWD)
+    my_hmmwv.SetDriveType(veh.DrivelineTypeWV_FWD)
     my_hmmwv.SetSteeringType(veh.SteeringTypeWV_PITMAN_ARM)
     my_hmmwv.SetTireType(veh.TireModelType_TMEASY)
     my_hmmwv.SetTireStepSize(self.step_size) # self.step_size
@@ -24,7 +27,7 @@ def init_vehicle(self):
     my_hmmwv.SetTireVisualizationType(veh.VisualizationType_PRIMITIVES)
 
     self.my_hmmwv = my_hmmwv
-    return my_hmmwv
+    # return my_hmmwv
 
 def init_terrain(self, friction, reduced_waypoints):
     # Define the patch coordinates
@@ -38,7 +41,7 @@ def init_terrain(self, friction, reduced_waypoints):
         patch_mat.SetRestitution(rest_values[i])
         patch_mat.SetYoungModulus(young_modulus_values[i])
 
-    terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem()) # self.my_hmmwv
+    self.terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem())
 
     # Base grass terrain
     patch_coords_np = np.array(patch_coords)
@@ -55,13 +58,22 @@ def init_terrain(self, friction, reduced_waypoints):
     patch_mat_base.SetRestitution(0.01)
     patch_mat_base.SetYoungModulus(2e7)
     base_coord = chrono.ChCoordsysD(base_pos,chrono.QUNIT)
-    patch_base = terrain.AddPatch(patch_mat_base, 
+    patch_base = self.terrain.AddPatch(patch_mat_base, 
                              base_coord, 
                              terrainLength, terrainWidth)
     patch_base.SetTexture(veh.GetDataFile("terrain/textures/grass.jpg"), 200, 200) #concrete, dirt, grass, tile4
-    print(veh.GetDataPath())
-    # patch_base.SetColor(chrono.ChColor(0.8, 0.8, 0.5))
-    
+
+    # debug patch viz_patch
+    # minfo = chrono.ChContactMaterialData()
+    # minfo.mu = 0.8
+    # minfo.cr = 0.01
+    # minfo.Y = 2e7
+    # patch_mat_base2 = minfo.CreateMaterial(self.my_hmmwv.GetSystem().GetContactMethod())
+    # print("contact method",self.my_hmmwv.GetSystem().GetContactMethod())
+    # self.viz_patch = self.terrain.AddPatch(patch_mat_base2, chrono.CSYSNORM, 200, 200)
+    # patch_mat_base2.SetColor(chrono.ChColor(1, 1, 1))
+    # patch_mat_base2.SetTexture(veh.GetDataFile("terrain/textures/tile4.jpg"), 200, 200)
+
 
     # Loop over the patch materials and coordinates to add each patch to the terrain
     patches = []
@@ -69,8 +81,8 @@ def init_terrain(self, friction, reduced_waypoints):
         coords = patch_coords[i]
         psi = reduced_waypoints[i, 3]
         if i == len(patch_mats) - 1:
-            # s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
-            s=0
+            s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
+            # s = 0
         else:    
             s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
 
@@ -78,11 +90,11 @@ def init_terrain(self, friction, reduced_waypoints):
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), 20, s*self.reduced_rate*1.5)
+        patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.reduced_rate*1.5, 20)
         patches.append(patch)
 
-    # viz_patch = terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
-    viz_patch = None
+    # self.viz_patch = self.terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
+    self.viz_patch = patch_base
     
     # Set color of patch based on friction value
     min_friction = min(friction)
@@ -95,15 +107,12 @@ def init_terrain(self, friction, reduced_waypoints):
                 RGB_value = 0
         else:
             RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
-        # RGB_value = 1 - (friction[i] - 0.4)
-        # print(RGB_value, friction[i])
+            # RGB_value = 1
         patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
 
-    # for patch in patches:
-    #     patch.SetTexture(veh.GetDataFile("terrain/textures/concrete.jpg"), 10, 10)
+    self.terrain.Initialize()
 
-    terrain.Initialize()
-    return terrain, viz_patch
+    # return self.terrain, self.viz_patch
 
 def init_irrlicht_vis(ego_vehicle):
     # Create the vehicle Irrlicht interface
@@ -232,9 +241,9 @@ def get_vehicle_state(self):
     # braking = my_driver.GetBraking()
 
     # steering = veh.DriverInputs().m_steering
-    steering = self.driver_inputs.m_steering
-    # print("steering ratio sriver inputs", steering)
-    # inputs = my_driver.GetInputs()
+    # steering = self.driver_inputs.m_steering
+    steering = (get_steering(self, 0, 0)+get_steering(self, 0, 1))/2 # average of front wheels
+
 
     driver_glob_location = vehicle.GetVehicle().GetDriverPos()  # global location of the driver
     # (Include the rest of the code inside the original loop)
@@ -253,38 +262,22 @@ def get_vehicle_state(self):
 
     return vehicle_state
 
-def get_toe_in(self, wheel_state_global): 
-    # Wheel normal expressed in global frame
-    wheel_normal = wheel_state_global.rot.GetYaxis()
-    # Terrain normal at wheel location expressed in global frame
-    Z_dir = self.terrain.GetNormal(wheel_state_global.pos)
-    # Longitudinal (heading) and lateral directions, in the terrain plane
-    wheel_normal_np = np.array([wheel_normal.x, wheel_normal.y, wheel_normal.z])
-    Z_dir_np = np.array([Z_dir.x, Z_dir.y, Z_dir.z])
-    X_dir_np = np.cross(wheel_normal_np, Z_dir_np) 
-    X_dir = chrono.ChVectorD(X_dir_np[0], X_dir_np[1], X_dir_np[2])
-    X_dir.Normalize()
-    X_dir_np = np.array([X_dir.x, X_dir.y, X_dir.z])   
-    Y_dir_np = np.cross(Z_dir_np, X_dir_np)
-    Y_dir = chrono.ChVectorD(Y_dir_np[0], Y_dir_np[1], Y_dir_np[2])
-    rot = chrono.ChMatrix33D()
-    rot.Set_A_axis(X_dir, Y_dir, Z_dir)
-    tire_csys = chrono.ChCoordsysD(wheel_state_global.pos, rot.Get_A_quaternion()) 
+def get_steering(self, front_rear, right_left): 
+    # front_rear: 0 for front, 1 for rear
+    # right_left: 0 for right, 1 for left
 
-    # Express wheel normal in tire frame
-    n = tire_csys.TransformDirectionParentToLocal(wheel_normal)
-    # print("n",n.x, n.y, n.z)
+    wheel = self.my_hmmwv.GetVehicle().GetWheel(front_rear, right_left).GetSpindle()
 
-    # Wheel normal in the vehicle frame
-    n_v = self.my_hmmwv.GetVehicle().GetTransform().TransformDirectionLocalToParent(wheel_normal)
+    wheel_normal_abs = wheel.GetA().Get_A_Yaxis()
 
-    # Toe-in
-    toe_in = math.atan2(n_v.x, n_v.y)
+    wheel_normal_loc = self.my_hmmwv.GetChassisBody().TransformDirectionParentToLocal(wheel_normal_abs)
 
-    return toe_in
+    wheel_angle = np.arctan2(wheel_normal_loc.y, wheel_normal_loc.x) - np.pi/2
+
+    return wheel_angle
 
 def reset_config(self, vehicle_params):
-    print("self.config.MASS",self.config.MASS)
+    print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
     self.config.LENGTH      = vehicle_params.LENGTH
     self.config.WIDTH       = vehicle_params.WIDTH
     self.config.LR          = vehicle_params.LR
@@ -298,7 +291,7 @@ def reset_config(self, vehicle_params):
     self.config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
     self.config.MAX_DECEL   = vehicle_params.MAX_DECEL
     self.config.MASS        = vehicle_params.MASS
-    print("self.config.MASS",self.config.MASS)
+    print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
 
 class VehicleParameters:
     def __init__(self, vehicle):
@@ -328,21 +321,97 @@ class VehicleParameters:
         self.LF = np.linalg.norm(np.array([tmp.x, tmp.y, tmp.z]))
         self.LR = self.WB - self.LF
 
+class LongitudinalSpeedPIDController:
+    def __init__(self, vehicle):
+        self.Kp = 0
+        self.Ki = 0
+        self.Kd = 0
 
-# def get_vehicle_parameters(vehicle):
-#     params = VehicleParameters()
-#     params.MASS = vehicle.GetVehicle().GetMass()
-#     params.WB   = vehicle.GetVehicle().GetWheelbase()
-#     params.MIN_STEER = -vehicle.GetVehicle().GetMaxSteeringAngle()
-#     params.MAX_STEER = +vehicle.GetVehicle().GetMaxSteeringAngle()
-#     params.WIDTH = vehicle.GetVehicle().GetWheeltrack(0)
-#     chassisPos = vehicle.GetVehicle().GetChassis().GetPos()
-#     COMPos = vehicle.GetVehicle().GetChassis().GetCOMFrame().coord.pos
-#     absPosCOM = COMPos + chassisPos
-#     fw = vehicle.GetVehicle().GetAxle(0).GetWheels()[1].GetPos()
-#     tmp = fw - absPosCOM
-#     params.LF = np.linalg.norm(np.array([tmp.x, tmp.y, tmp.z]))
+        self.err = 0
+        self.errd = 0
+        self.erri = 0
+
+        self.target_speed = 0
+        self.vehicle = vehicle
+
+    def SetGains(self, Kp, Ki, Kd):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+
+    # def SetTargetSpeed(self, speed):
+    #     self.target_speed = speed
+
+    def Advance(self, target_speed, step):
+        self.target_speed = target_speed
+
+        # self.speed = self.vehicle.GetVehicleSpeed()
+        vx = self.vehicle.state[2]
+
+        # Calculate current error
+        err = self.target_speed - vx
+        # print("target speed",target_speed,"speed error", err)
+
+        # Estimate error derivative (backward FD approximation)
+        self.errd = (err - self.err) / step
+
+        # Calculate current error integral (trapezoidal rule).
+        self.erri += (err + self.err) * step / 2
+
+        # Cache new error
+        self.err = err
+
+        # Return PID output (throttle value)
+        throttle = np.clip(
+            self.Kp * self.err + self.Ki * self.erri + self.Kd * self.errd, -1.0, 1.0
+        )
+
+        return throttle
     
-#     params.LR = params.WB - params.LF 
+class SteeringAnglePIDController:
+    def __init__(self, vehicle):
+        self.Kp = 0
+        self.Ki = 0
+        self.Kd = 0
 
-#     return params       
+        self.err = 0
+        self.errd = 0
+        self.erri = 0
+
+        self.target_steering = 0
+        self.vehicle = vehicle
+
+    def SetGains(self, Kp, Ki, Kd):
+        self.Kp = Kp
+        self.Ki = Ki
+        self.Kd = Kd
+
+    # def SetTargetSpeed(self, speed):
+    #     self.target_speed = speed
+
+    def Advance(self, target_angle, step):
+        self.target_angle = target_angle
+
+        steering = self.vehicle.state[6]
+
+        # Calculate current error
+        err = self.target_angle - steering
+        # print("steering error", err)
+        print("target steering angle",target_angle,"error", err)
+
+        # Estimate error derivative (backward FD approximation)
+        self.errd = (err - self.err) / step
+
+        # Calculate current error integral (trapezoidal rule).
+        self.erri += (err + self.err) * step / 2
+
+        # Cache new error
+        self.err = err
+
+        # Return PID output (steering value)
+        steering_command = self.Kp * self.err + self.Ki * self.erri + self.Kd * self.errd #[deg]
+        steering_command = steering_command / self.vehicle.GetVehicle().GetMaxSteeringAngle() #[-1,1]
+        steering_command = np.clip(steering_command, -1.0, 1.0)
+
+        return steering_command
+ 

@@ -25,7 +25,7 @@
 
 import pychrono as chrono
 import pychrono.vehicle as veh
-# import pychrono.irrlicht as chronoirr
+import pychrono.irrlicht as chronoirr
 import numpy as np
 import json
 import matplotlib.pyplot as plt
@@ -35,15 +35,16 @@ import torch
 import gpytorch
 from argparse import Namespace
 from datetime import datetime
-from regulators.pure_pursuit import *
-from regulators.path_follow_mpc import *
-from models.extended_kinematic import ExtendedKinematicModel
-from models.GP_model_ensembling_frenet import GPEnsembleModelFrenet
-from models.configs import *
-from helpers.closest_point import *
-from helpers.track import Track
+from EGP.regulators.pure_pursuit import *
+from EGP.regulators.path_follow_mpc import *
+from EGP.models.extended_kinematic import ExtendedKinematicModel
+from EGP.models.GP_model_ensembling_frenet import GPEnsembleModelFrenet
+from EGP.models.configs import *
+from EGP.helpers.closest_point import *
+from EGP.helpers.track import Track
 from chrono_env.environment import ChronoEnv
 from chrono_env.utils import *
+from chrono_env.data_gen_utils import friction_func
 
 # --------------
 step_size = 2e-3
@@ -56,11 +57,12 @@ use_dyn_friction = False
 # gp_mpc_type = 'frenet'  # cartesian, frenet
 # render_every = 30  # render graphics every n sim steps
 constant_speed = True
-constant_speed_ref = 50
-constant_friction = 0.7
+constant_speed_ref = 10
+constant_friction = 1.0
 number_of_laps = 3
 SAVE_MODEL = True
-t_end = 250
+SAVE_DIR = './data/'
+t_end = 160
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -68,10 +70,10 @@ env = ChronoEnv(step_size, throttle_value)
 # Creating the single-track Motion planner and Controller
 
 # Init Pure-Pursuit regulator
-work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 10.6461887897713965, 'vgain': 1.0}
+work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0}
 
 # Load map config file
-with open('configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- SaoPaulo
+with open('EGP/configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- SaoPaulo
     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 conf = Namespace(**conf_dict)
 if not map_name == 'custom_track':
@@ -91,8 +93,8 @@ if not map_name == 'custom_track':
 
     # Rotate the map for 90 degrees in anti-clockwise direction 
     # to match the map with the vehicle's initial orientation
-    rotation_matrix = np.array([[0, 1], [-1, 0]])
-    waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
+    # rotation_matrix = np.array([[0, 1], [-1, 0]])
+    # waypoints[:, 1:3] = np.dot(waypoints[:, 1:3], rotation_matrix)
 
 else:
     centerline_descriptor = np.array([[0.0, 25 * np.pi, 25 * np.pi + 50, 2 * 25 * np.pi + 50, 2 * 25 * np.pi + 100],
@@ -124,6 +126,9 @@ curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
 veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
 
 friction = [constant_friction for i in range(waypoints.shape[0])]
+# reduced_waypoints = waypoints[::env.reduced_rate, :] 
+# s_max = np.max(reduced_waypoints[:, 0])
+# friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
 
 # # Define the patch coordinates
 # patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in waypoints]
@@ -131,13 +136,13 @@ friction = [constant_friction for i in range(waypoints.shape[0])]
 # Kp = 0.6
 # Ki = 0.2
 # Kd = 0.3
-Kp = 3.8
+Kp = 20
 Ki = 0
 Kd = 0
 
-env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,
-         reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd], 
-         ini_pos=chrono.ChVectorD(waypoints[0,1], waypoints[0,2], 0.5))
+env.make(config=MPCConfigEXT(), friction=friction, 
+         reduced_waypoints=waypoints, curve=curve, speedPID_Gain=[Kp, Ki, Kd],
+         steeringPID_Gain=[0.1,0,0], x0=waypoints[0,1], y0=waypoints[0,2], w0=waypoints[0,3])
 
 # ---------------
 # Simulation loop
@@ -155,7 +160,11 @@ env.my_hmmwv.GetSystem().SetChTime(0)
 
 reset_config(env, env.vehicle_params)
 
-
+planner_pp = PurePursuitPlanner(conf, env.vehicle_params.WB)
+if map_name == 'custom_track':
+    planner_pp.waypoints = waypoints.copy()
+# plt.scatter(planner_pp.waypoints[:, 1], planner_pp.waypoints[:, 2], s=1)
+# plt.show()
 planner_gp_mpc_frenet = STMPCPlanner(model=GPEnsembleModelFrenet(config=MPCConfigGPFrenet(), track=track), waypoints=waypoints,
                                              config=MPCConfigGPFrenet(), track=track)
 planner_gp_mpc_frenet.trajectry_interpolation = 1
@@ -165,7 +174,7 @@ planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config),
                                 waypoints=waypoints,
                                 config=env.config) #path_follow_mpc.py
 
-
+# reset_config(planner_pp, env.vehicle_params)
 reset_config(planner_gp_mpc_frenet, env.vehicle_params)
 reset_config(planner_ekin_mpc, env.vehicle_params)
 
@@ -215,6 +224,8 @@ while not done: # every control time step
 '''
 #########################################################
 
+ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
+
 while env.lap_counter < num_laps:
     # Render scene
     env.render()
@@ -232,16 +243,38 @@ while env.lap_counter < num_laps:
                                     ])
     print(f"X: {vehicle_state[0]}  Y: {vehicle_state[1]}  S: {pose_frenet[0]}")
 
+    if pose_frenet[0] < 0:
+        print("Negative s!!")
+
     tracking_error = 0.0
+    u = [0.0, 0.0]
 
     if gp_model_trained <= 1:
     # if gp_model_trained < 1:
         # just run ext_kinematic for the first 2 laps (gp_model_trained=0 or 1)
         print("Initial model")
         if model_in_first_lap == "ext_kinematic":
-            u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_ekin_mpc.plan(
+            u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, env.mpc_ox, env.mpc_oy = planner_ekin_mpc.plan(
                 vehicle_state)
             u[0] = u[0] / planner_ekin_mpc.config.MASS  # Force to acceleration
+        elif model_in_first_lap == "pure_pursuit":
+            # Regulator step pure pursuit
+            pos = env.my_hmmwv.GetVehicle().GetPos()
+            speed, steer_angle = planner_pp.plan(pos.x, pos.y, vehicle_state[3],
+                                                 work['tlad'], work['vgain'])
+
+            pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1],  pos.z)
+            ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+
+            error_steer = steer_angle - vehicle_state[-1]
+            u[1] = 10.0 * error_steer
+
+            error_drive = speed - vehicle_state[2]
+            u[0] = 12.0 * error_drive
+
+            if env.lap_counter == 0:
+                u[0] += np.random.randn(1)[0] * 0.2
+                u[1] += np.random.randn(1)[0] * 0.01
     else:
         print("gp_model_trained",gp_model_trained)
         u, mpc_ref_path_s, mpc_ref_path_ey, mpc_pred_s, mpc_pred_ey, mpc_os, mpc_oey = planner_gp_mpc_frenet.plan(
@@ -261,17 +294,24 @@ while env.lap_counter < num_laps:
             pose_cartesian = track.frenet_to_cartesian(np.array([mpc_ref_path_s[i], mpc_ref_path_ey[i], 0.0]))  # [s, ey, eyaw]
             mpc_ref_path_x[i] = pose_cartesian[0]
             mpc_ref_path_y[i] = pose_cartesian[1]
+        env.mpc_ox = mpc_pred_x
+        env.mpc_oy = mpc_pred_y
 
     if gp_model_trained:
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
             mean, lower, upper = planner_gp_mpc_frenet.model.scale_and_predict_model_step(vehicle_state_frenet, [u[0] * planner_gp_mpc_frenet.config.MASS, u[1]])
 
-    speed = vehicle_state[2] + u[0]*planner_ekin_mpc.config.DTK
-    steering = env.driver_inputs.m_steering + u[1]*planner_ekin_mpc.config.DTK/env.config.MAX_STEER # [-1,1]
-    # print("speed input", speed, "steering input", steering)
+    if (gp_model_trained <= 1) and (model_in_first_lap == "pure_pursuit"):
+        speed = u[0]
+        steering = u[1]
+        print("pure pursuit input speed", speed, "steering input [deg]", steering)
+    else:
+        speed = vehicle_state[2] + u[0]*planner_ekin_mpc.config.DTK
+        steering = env.driver_inputs.m_steering*env.config.MAX_STEER + u[1]*planner_ekin_mpc.config.DTK # [-1,1]
+        # print("speed input", speed, "steering input", steering)
 
     # Forcing positive speed
-    speed = constant_speed_ref
+    # speed = constant_speed_ref
 
     # Run the simulation for one control period
     for i in range(int(env.control_step)):
@@ -353,9 +393,9 @@ while env.lap_counter < num_laps:
         log_dataset['Y1'] = planner_gp_mpc_frenet.model.y_samples[1]
         log_dataset['Y2'] = planner_gp_mpc_frenet.model.y_samples[2]
 
-        with open('log01', 'w') as f:
+        with open(SAVE_DIR+'log01', 'w') as f:
             json.dump(log, f)
-        with open('testing_dataset', 'w') as f:
+        with open(SAVE_DIR+'testing_dataset', 'w') as f:
             json.dump(log_dataset, f)
 
     if env.time > t_end:
@@ -364,9 +404,9 @@ while env.lap_counter < num_laps:
 
 execution_time_end = time.time()
 print('Sim elapsed time:', laptime, 'Execution elapsed time:', execution_time_end - execution_time_start)
-with open('log01', 'w') as f:
+with open(SAVE_DIR+'log01', 'w') as f:
     json.dump(log, f)
-with open('log_dataset', 'w') as f:
+with open(SAVE_DIR+'log_dataset', 'w') as f:
     json.dump(log_dataset, f)
 
 if SAVE_MODEL:
@@ -375,8 +415,8 @@ if SAVE_MODEL:
     # dd/mm/YY H:M:S
     dt_string = now.strftime("%d-%m-%Y_%H:%M:%S")
 
-    torch.save(planner_gp_mpc_frenet.model.gp_model.state_dict(), 'gp' + dt_string + '.pth')
-    torch.save(planner_gp_mpc_frenet.model.gp_likelihood.state_dict(), 'gp_likelihood' + dt_string + '.pth')
+    torch.save(planner_gp_mpc_frenet.model.gp_model.state_dict(), SAVE_DIR + 'gp' + dt_string + '.pth')
+    torch.save(planner_gp_mpc_frenet.model.gp_likelihood.state_dict(), SAVE_DIR + 'gp_likelihood' + dt_string + '.pth')
 
 
 plt.figure()

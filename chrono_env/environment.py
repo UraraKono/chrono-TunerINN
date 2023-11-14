@@ -4,14 +4,14 @@ import pychrono.irrlicht as chronoirr
 import numpy as np
 import math
 import numpy as np
-# from .utils import *
-from .utils import VehicleParameters, init_vehicle, init_terrain, init_irrlicht_vis, get_vehicle_state, get_toe_in
+from .utils import *
+# from .utils import VehicleParameters, init_vehicle, init_terrain, init_irrlicht_vis, get_vehicle_state, get_steering, LongitudinalSpeedPIDController, SteeringAnglePIDController
 
 class ChronoEnv:
     def __init__(self, step_size, throttle_value) -> None:
         self.step_size = step_size
         self.my_hmmwv = None
-        self.terrain, self.vis_patch = None, None
+        self.terrain, self.viz_patch = None, None
         self.vis = None
         self.vehicle_params = None
         self.config = None
@@ -37,8 +37,7 @@ class ChronoEnv:
         self.speed = []
         self.speed_ref = []
         self.speedPID_output = 1.0
-        self.target_speed = 0
-        self.steering_output = 0
+        self.steeringPID_output = 0
         
         self.toein_FL = []
         self.toein_FR = []
@@ -51,57 +50,65 @@ class ChronoEnv:
         self.driver_inputs.m_braking = 0.0
 
 
-    def make(self, config, friction, waypoints, reduced_waypoints, curve, speedPID_Gain=[0.4,0,0], ini_pos = chrono.ChVectorD(0, 0, 0.5)) -> None:
-        self.ini_pos = ini_pos
-        self.my_hmmwv = init_vehicle(self)
+    def make(self, config, friction, reduced_waypoints, curve, speedPID_Gain=[1,0,0], steeringPID_Gain=[1,0,0], x0=0, y0=0, w0=0) -> None:
+        self.x0 = x0 # initial x position
+        self.y0 = y0 # initial y position
+        self.w0 = w0 # initial yaw angle
+        # self.my_hmmwv = init_vehicle(self)
+        init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)
-        self.terrain, self.viz_patch = init_terrain(self, friction, reduced_waypoints)
+        init_terrain(self, friction, reduced_waypoints)
         self.vis = init_irrlicht_vis(self.my_hmmwv)
         self.vehicle_params = VehicleParameters(self.my_hmmwv)
         self.config = config
         self.control_step = self.config.DTK / self.step_size # control step for MPC in sim steps
 
         path = curve
-        # print("path\n", path)
+        print("path\n", path)
         npoints = path.getNumPoints()
+        print("npoints", npoints)
         self.path_asset = chrono.ChLineShape()
         self.path_asset.SetLineGeometry(chrono.ChLineBezier(path))
         self.path_asset.SetName("test path")
-        self.path_asset.SetColor(chrono.ChColor(0.8, 0.0, 0.0))
+        self.path_asset.SetColor(chrono.ChColor(1, 0.0, 0.0))
         self.path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        # self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
+        print("self.viz_patch",self.viz_patch)
+        self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
+        # Why doesn't this path_asset show up in the visualization?
+        
 
-        mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(self.config.TK + 1)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
+        mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(self.config.TK)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
         mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
         npoints = mpc_curve.getNumPoints()
-        mpc_path_asset = chrono.ChLineShape()
-        mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-        mpc_path_asset.SetName("MPC path")
-        mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
-        mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        # self.viz_patch.GetGroundBody().AddVisualShape(mpc_path_asset)
-        self.mpc_path_asset = mpc_path_asset
+        self.mpc_path_asset = chrono.ChLineShape()
+        self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+        self.mpc_path_asset.SetName("MPC path")
+        self.mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
+        self.mpc_path_asset = chrono.ChLineShape()
+        self.mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
+        self.viz_patch.GetGroundBody().AddVisualShape(self.mpc_path_asset)
 
         # ballS = self.vis.GetSceneManager().addSphereSceneNode(0.1)
-        # ballT = self.vis.GetSceneManager().addSphereSceneNode(0.1)
+        self.ballT = self.vis.GetSceneManager().addSphereSceneNode(0.1)
         # ballS.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 255, 0, 0)
-        # ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+        self.ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
 
         # Set up the longitudinal speed PID controller
-        self.Kp = speedPID_Gain[0]
-        self.Ki = speedPID_Gain[1]
-        self.Kd = speedPID_Gain[2]
-        print("speedPID_Gain",speedPID_Gain)
-        self.speedPID = veh.ChSpeedController()
-        self.speedPID.SetGains(self.Kp, self.Ki, self.Kd)
-        self.speedPID.Reset(self.my_hmmwv.GetVehicle())
+        self.speedPID = LongitudinalSpeedPIDController(self.my_hmmwv)
+        self.speedPID.SetGains(speedPID_Gain[0], speedPID_Gain[1], speedPID_Gain[2])
+
+        # Set up the steering controller
+        self.steeringPID = SteeringAnglePIDController(self.my_hmmwv)
+        self.steeringPID.SetGains(steeringPID_Gain[0], steeringPID_Gain[1], steeringPID_Gain[2])
+
 
     # def reset(self) -> None:
 
     def step(self, target_speed, target_steering) -> None:
         # Driver inputs
         self.time = self.my_hmmwv.GetSystem().GetChTime()
-        self.driver_inputs.m_steering = np.clip(target_steering, -1.0, +1.0)
+        self.driver_inputs.m_steering = np.clip(self.steeringPID_output, -1.0, +1.0)
+        # self.driver_inputs.m_steering = np.clip(target_steering/self.config.MAX_STEER, -1.0, +1.0)
         self.speedPID_output = np.clip(self.speedPID_output, -1.0, +1.0)
 
         if self.speedPID_output > 0:
@@ -116,12 +123,11 @@ class ChronoEnv:
         self.my_hmmwv.Synchronize(self.time, self.driver_inputs, self.terrain)
         self.vis.Synchronize("", self.driver_inputs)
         
-        # vehicle_state = get_vehicle_state(self)
         self.my_hmmwv.state = get_vehicle_state(self)
         # print("vehicle_state", self.my_hmmwv.state)
         self.t_stepsize.append(self.time)
         self.speed.append(self.my_hmmwv.state[2])
-        self.speed_ref.append(self.target_speed)
+        self.speed_ref.append(target_speed)
         self.x_trajectory.append(self.my_hmmwv.state[0])
         self.y_trajectory.append(self.my_hmmwv.state[1])
 
@@ -136,18 +142,28 @@ class ChronoEnv:
         elif self.lap_flag is True and distance_to_start > self.tolerance:
             self.lap_flag = False
 
-        # Solve MPC every control_step
+        #Advance the PID controller every simulation time step
+        self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
+        self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
+
+        # every control_step
         if (self.step_number % (self.control_step) == 0) : 
-            # print("step number", self.step_number)
-            self.speedPID_output = self.speedPID.Advance(self.my_hmmwv.GetVehicle(), target_speed, self.step_size)
-            # print('speed pid output', self.speedPID_output)
-            self.t_controlperiod.append(self.time)
+            # self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
+            # self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
+            # self.t_controlperiod.append(self.time)
             
             if self.mpc_ox is not None and not np.any(np.isnan(self.mpc_ox)):
-                # Update mpc_path_asset with mpc_pred
-                mpc_curve_points = [chrono.ChVectorD(self.mpc_ox[i], self.mpc_oy[i], 0.6) for i in range(self.config.TK + 1)]
+                # print("Update self.mpc_path_asset")
+                mpc_curve_points = [chrono.ChVectorD(self.mpc_ox[i], self.mpc_oy[i], 0.6) for i in range(len(self.mpc_ox))]
                 mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
                 self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+
+                pT = chrono.ChVectorD(self.mpc_ox[-1], self.mpc_oy[-1], 0.6)
+                self.ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+            elif self.mpc_ox is not None and np.any(np.isnan(self.mpc_ox)):
+                print("No update self.mpc_path_asset")
+            else:
+                print("self.mpc_ox is None")
         
         # Advance simulation for one timestep for all modules
         # These three lines should be outside of the if statement for MPC!!!
@@ -158,26 +174,18 @@ class ChronoEnv:
         # Increment frame number
         self.step_number += 1
 
-        # Get wheel state
-        wheel_state_global = self.my_hmmwv.GetVehicle().GetWheel(0,0).GetState() #in global frame
-        toe_in = get_toe_in(self, wheel_state_global)
+        steering_FL = get_steering(self,0,0)
+        steering_FR = get_steering(self,0,1)
+        steering_RL = get_steering(self,1,0)
+        steering_RR = get_steering(self,1,1)
 
-        wheel_state_global_2 = self.my_hmmwv.GetVehicle().GetWheel(0,1).GetState() #in global frame
-        toe_in_2 = get_toe_in(self, wheel_state_global_2)
+        self.toein_FL.append(steering_FL*180/np.pi)
+        self.toein_FR.append(steering_FR*180/np.pi)
+        self.toein_RL.append(steering_RL*180/np.pi)
+        self.toein_RR.append(steering_RR*180/np.pi)
+        self.steering_driver.append(self.driver_inputs.m_steering*self.config.MAX_STEER*180/np.pi)
 
-        wheel_state_global_3 = self.my_hmmwv.GetVehicle().GetWheel(1,0).GetState() #in global frame
-        toe_in_3 = get_toe_in(self, wheel_state_global_3)
-        wheel_state_global_4 = self.my_hmmwv.GetVehicle().GetWheel(1,1).GetState() #in global frame
-        toe_in_4 = get_toe_in(self, wheel_state_global_4)
-
-        self.toein_FL.append(toe_in*180/np.pi)
-        self.toein_FR.append(toe_in_2*180/np.pi)
-        self.toein_RL.append(toe_in_3*180/np.pi)
-        self.toein_RR.append(toe_in_4*180/np.pi)
-        self.steering_driver.append(self.my_hmmwv.state[-1]*180/np.pi)
-        # print("toe_in Front Left",toe_in*180/np.pi,"FR",toe_in_2*180/np.pi,"RL",toe_in_3*180/np.pi, "steering", self.my_hmmwv.state[-1]*180/np.pi)
-        # print("toe_in",toe_in, "steering", self.my_hmmwv.state[-1]/self.my_hmmwv.GetVehicle().GetMaxSteeringAngle())
-
+        
     def render(self) -> None:
         if (self.step_number % (self.render_steps) == 0) :
             self.vis.BeginScene()
