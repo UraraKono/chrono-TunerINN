@@ -58,12 +58,13 @@ constant_friction = 0.7
 # number_of_laps = 20
 SAVE_MODEL = True
 t_end = 60
+ref_vx = 15.0
 # Init Pure-Pursuit regulator
 work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
 
 # --------------
 
-env = ChronoEnv(step_size, throttle_value)
+env = ChronoEnv()
 
 # Load map config file
 with open('EGP/configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- SaoPaulo
@@ -104,7 +105,7 @@ else:
                                         [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
                                         [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
 
-    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=10.0)
+    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=ref_vx)
     waypoints = track.get_reference_trajectory()
     print('waypoints\n',waypoints.shape)
 

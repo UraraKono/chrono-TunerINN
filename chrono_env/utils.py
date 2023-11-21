@@ -69,15 +69,18 @@ def init_terrain(self, friction, reduced_waypoints):
         psi = reduced_waypoints[i, 3]
         if i == len(patch_mats) - 1:
             s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
-            # s = 0
+            distance = np.sqrt((reduced_waypoints[i, 1] - reduced_waypoints[i-1, 1])**2 + (reduced_waypoints[i, 2] - reduced_waypoints[i-1, 2])**2)
         else:    
             s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
+            # l2 norm distance between (reduced_waypoints[i+1, 1], reduced_waypoints[i+1, 2]) and (reduced_waypoints[i, 1], reduced_waypoints[i, 2])
+            distance = np.sqrt((reduced_waypoints[i+1, 1] - reduced_waypoints[i, 1])**2 + (reduced_waypoints[i+1, 2] - reduced_waypoints[i, 2])**2)
 
         # print("s", s)
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
-        patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.reduced_rate*1.5, 20)
+        # patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.patch_scale, 20)
+        patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), distance*self.patch_scale, 20)
         patches.append(patch)
 
     # self.viz_patch = self.terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
@@ -102,7 +105,7 @@ def init_terrain(self, friction, reduced_waypoints):
 def init_irrlicht_vis(ego_vehicle):
     # Create the vehicle Irrlicht interface
     vis = veh.ChWheeledVehicleVisualSystemIrrlicht()
-    vis.SetWindowTitle('MPC control')
+    vis.SetWindowTitle('control')
     vis.SetWindowSize(1280, 1024)
     vis.SetHUDLocation(500, 20)
     vis.Initialize()

@@ -202,6 +202,7 @@ class PurePursuitPlanner:
         elif nearest_dist < self.max_reacquire:
             return np.append(wpts[i, :], waypoints[i, self.conf.wpt_vind])
         else:
+            print("No waypoint found within max_reacquire distance in _get_current_waypoint in pure_pursuit.py!!!")
             return None
 
     def plan(self, pose_x, pose_y, pose_theta, lookahead_distance, vgain):
@@ -212,6 +213,7 @@ class PurePursuitPlanner:
         self.lookahead_point = self._get_current_waypoint(self.waypoints, lookahead_distance, position, pose_theta)
 
         if self.lookahead_point is None:
+            print("No lookahead_point found in plan in pure_pursuit.py!!!")
             return 4.0, 0.0
 
         speed, steering_angle = get_actuation(pose_theta, self.lookahead_point, position, lookahead_distance, self.wheelbase)

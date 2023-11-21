@@ -41,7 +41,6 @@ class ChronoEnv:
         self.vis = None
         self.vehicle_params = None
         self.mpc_ox = None
-        self.reduced_rate = 1
 
         # Time interval between two render frames
         try:
@@ -106,9 +105,9 @@ class ChronoEnv:
         except:
             waypoints = None
         try:
-            sample_rate_waypoints = kwargs['sample_rate_waypoints']
+            self.sample_rate_waypoints = kwargs['sample_rate_waypoints']
         except:
-            sample_rate_waypoints = 1
+            self.sample_rate_waypoints = 1
         try:
             friction = kwargs['friction']
         except:
@@ -133,6 +132,10 @@ class ChronoEnv:
             self.w0 = kwargs['w0']
         except:
             self.w0 = waypoints[0,3]-np.pi
+        try:
+            self.patch_scale = kwargs['patch_scale']
+        except:
+            self.patch_scale = 5
         # try:
         #     self.config = kwargs['config']
         # except:
@@ -157,7 +160,9 @@ class ChronoEnv:
                             # num_agents=1, timestep=0.01, model='MB', drive_control_mode='acc',
                             # steering_control_mode='vel')
 
-        patch_waypoints = waypoints[::sample_rate_waypoints, :]
+        patch_waypoints = waypoints[::self.sample_rate_waypoints, :]
+        print("patch_waypoints", patch_waypoints.shape)
+        print("waypoints", waypoints.shape)
         veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
         init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)

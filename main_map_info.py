@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 import yaml
 import time
 from argparse import Namespace
+import warnings
 from EGP.regulators.pure_pursuit import *
 from EGP.regulators.path_follow_mpc import *
 from EGP.models.extended_kinematic import ExtendedKinematicModel
@@ -48,10 +49,13 @@ throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 SAVE_MODEL = True
 MAP_DIR = './f1tenth-racetrack/'
 SAVE_DIR = './data/'
-t_end = 400
-map_ind = 39 # 39 Zandvoort_raceline
-ref_vx = 8.0
+t_end = 2000
+map_ind = 14 # 39 Zandvoort_raceline
+map_scale = 10
+patch_scale = 1.5 # map_ind 16: 1.5
+ref_vx = 15.0
 control_model = "pure_pursuit" # options: ext_kinematic, pure_pursuit
+num_laps = 1  # Number of laps
 # --------------
 
 '''
@@ -67,15 +71,20 @@ If you use ref_vx=15, the vehicle goes left and right at turning
 with open('EGP/maps/config_example_map.yaml') as file:
     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 conf = Namespace(**conf_dict)
+
 map_info = np.genfromtxt('map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
-waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=7, reverse=False)
+waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=map_scale, reverse=False)
 print("waypoints\n",waypoints.shape)
 
 # Check if the waypoints are of the form [x_m, y_m, w_tr_right_m, w_tr_left_m]
 if waypoints.shape[1] == 4:
+    print("centerline to frenet")
     waypoints = centerline_to_frenet(waypoints)
     reduced_rate = 1
+    # map_ind = 16
+    reduced_rate = 2
 else: # raceline
+    print("reduced_rate is 5")
     reduced_rate = 5
 
 waypoints[:, -2] = ref_vx
@@ -90,11 +99,15 @@ friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
 # Kp = 0.6
 # Ki = 0.2
 # Kd = 0.3
-Kp = 5
+# Kp = 5
+# Ki = 0.01
+# Kd = 0
+# pure pursuit
+Kp = 1
 Ki = 0.01
 Kd = 0
 
-env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints,
+env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints, patch_scale=patch_scale,
          sample_rate_waypoints=reduced_rate, friction=friction, speedPID_Gain=[Kp, Ki, Kd],
          steeringPID_Gain=[0.5,0,0], x0=reduced_waypoints[0,1], 
          y0=reduced_waypoints[0,2], w0=waypoints[0,3]-np.pi)
@@ -103,9 +116,6 @@ env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoin
 # Simulation loop
 # ---------------
 
-num_laps = 3  # Number of laps
-lap_counter = 0
-
 # Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
 if control_model == "ext_kinematic":
     planner_ekin_mpc_config = MPCConfigEXT()
@@ -113,14 +123,24 @@ if control_model == "ext_kinematic":
     planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=planner_ekin_mpc_config), 
                                     waypoints=waypoints.copy(),
                                     config=planner_ekin_mpc_config) #path_follow_mpc.py
+    if planner_ekin_mpc.config.DTK != env.control_period:
+        warnings.warn("planner_ekin_mpc.config.DTK != env.control_period. Setting DTK to be equal to env.control_period.")
+        planner_ekin_mpc.config.DTK = env.control_period
+        print("planner_ekin_mpc.config.DTK", planner_ekin_mpc.config.DTK)
 elif control_model == "pure_pursuit":
     # Init Pure-Pursuit regulator
     work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
+    # work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 15, 'vgain': 1.0} # tlad: look ahead distance
     conf.wpt_path = MAP_DIR + conf.wpt_path
+    conf.wpt_xind = 1
+    conf.wpt_yind = 2
+    conf.wpt_vind = -2
     planner_pp = PurePursuitPlanner(conf, env.vehicle_params.WB)
     planner_pp.waypoints = waypoints.copy()
 
     ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
+    ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+
     plt.figure()
     plt.plot(planner_pp.waypoints[:,1], planner_pp.waypoints[:,2], label="waypoints")
     plt.show()
@@ -138,7 +158,7 @@ observation = {'poses_x': env.my_hmmwv.state[0],'poses_y': env.my_hmmwv.state[1]
         
         
 
-while lap_counter < num_laps:
+while env.lap_counter < num_laps:
     # Render scene
     env.render()
 
@@ -152,10 +172,17 @@ while lap_counter < num_laps:
         elif control_model == "pure_pursuit":
             planner_pp.waypoints = waypoints.copy()
             speed, steering = planner_pp.plan(observation['poses_x'], observation['poses_y'], observation['poses_theta'],
-                                            work['tlad'], work['vgain'])  
+                                            work['tlad'], work['vgain'])
+            print("pure pursuit input speed", speed, "steering angle ratio [-1,1]", steering/env.vehicle_params.MAX_STEER)  
+            u = np.array([speed, steering])
             # Visualize the lookahead point of pure-pursuit
-            pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1], 0.0)
-            ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+            if planner_pp.lookahead_point is not None:
+                pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1], 0.0)
+                ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+            else:
+                print("No lookahead point found in main_map_info.py!!!")
+        else:
+            raise ValueError("control_model is not valid")
 
 
         # set the steering between -pi to pi
@@ -182,7 +209,7 @@ while lap_counter < num_laps:
         print("Simulated for t_end. env.time:",env.time)
         break
 
-    if lap_counter >= num_laps:
+    if env.lap_counter >= num_laps:
         done = True
         print("Completed num_laps. env.time:",env.time)
         break
