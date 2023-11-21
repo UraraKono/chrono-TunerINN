@@ -68,11 +68,11 @@ class GPEnsembleModel:
 
         # gpytorch.settings.cg_tolerance(0.1)
 
-        self.x_measurements = None
-        self.y_measurements = None
+        self.x_measurements = [[] for i in range(6)]
+        self.y_measurements = [[] for i in range(3)]
 
-        self.x_samples = None
-        self.y_samples = None
+        self.x_samples = [[] for i in range(6)]
+        self.y_samples = [[] for i in range(3)]
 
         self.train_x_scaled = None
         self.train_y_scaled = None
@@ -316,12 +316,12 @@ class GPEnsembleModel:
         A[1, 3] = self.config.DTK * (vx * np.cos(yaw) - vy * np.sin(yaw))
         A[1, 4] = self.config.DTK * np.cos(yaw)
 
+        A[3, 5] = self.config.DTK * 1.0
+
         A[2, 2] += h1[0]  # dh1/dvx
         A[2, 4] = h1[1]  # dh1/dvy
         A[2, 5] = h1[2]  # dh1/d omega
         A[2, 6] = h1[3]  # dh1/d delta
-
-        A[3, 5] = self.config.DTK * 1.0
 
         A[4, 2] = h2[0]  # dh2/dvx
         A[4, 4] += h2[1]  # dh2/dvy
@@ -456,15 +456,25 @@ class GPEnsembleModel:
         :param Y_sample: (np.array) error vector: [vx_error, vy_error, yaw_rate_error]
         :return:
         """
-        if self.x_measurements is None:
-            self.x_measurements = X_sample.copy()
-        else:
-            self.x_measurements = np.vstack((self.x_measurements, X_sample))
+        X_sample = X_sample.tolist()
+        Y_sample = Y_sample.tolist()
 
-        if self.y_measurements is None:
-            self.y_measurements = Y_sample.copy()
-        else:
-            self.y_measurements = np.vstack((self.y_measurements, Y_sample))
+        # for i in range(6):
+        #     self.x_measurements[i].append(X_sample[i])
+        #
+        # for i in range(3):
+        #     self.y_measurements[i].append(Y_sample[i])
+
+        self.x_measurements[0].append(X_sample[0])
+        self.x_measurements[1].append(X_sample[1])
+        self.x_measurements[2].append(X_sample[2])
+        self.x_measurements[3].append(X_sample[3])
+        self.x_measurements[4].append(X_sample[4])
+        self.x_measurements[5].append(X_sample[5])
+
+        self.y_measurements[0].append(Y_sample[0])
+        self.y_measurements[1].append(Y_sample[1])
+        self.y_measurements[2].append(Y_sample[2])
 
     def init_gp(self):
         train_x = torch.tensor([self.x_measurements[k] for k in range(6)])
@@ -556,20 +566,93 @@ class GPEnsembleModel:
         self.trained = True
         print(len(self.x_samples[0]))
 
+    def train_gp_new(self, num_of_new_samples=40): 
+        training_iterations = 500
+
+        self.x_samples = self.x_measurements.copy()
+        self.y_samples = self.y_measurements.copy()
+
+        train_x = torch.tensor([self.x_samples[k] for k in range(6)])
+        train_y = torch.tensor([self.y_samples[k] for k in range(3)])
+        train_y = train_y.contiguous()
+
+
+        self.train_x_scaled = torch.transpose(torch.vstack((self.scaler_x[0].fit_transform(train_x[0]),
+                                                            self.scaler_x[1].fit_transform(train_x[1]),
+                                                            self.scaler_x[2].fit_transform(train_x[2]),
+                                                            self.scaler_x[3].fit_transform(train_x[3]),
+                                                            self.scaler_x[4].fit_transform(train_x[4]),
+                                                            self.scaler_x[5].fit_transform(train_x[5]),)), 0, 1).cuda()
+
+        self.train_y_scaled = torch.transpose(torch.vstack((self.scaler_y[0].fit_transform(train_y[0]),
+                                                            self.scaler_y[1].fit_transform(train_y[1]),
+                                                            self.scaler_y[2].fit_transform(train_y[2]),)), 0, 1).cuda()
+
+        self.means = torch.tensor([[self.scaler_x[0].mean, self.scaler_x[1].mean, self.scaler_x[2].mean,
+                                    self.scaler_x[3].mean, self.scaler_x[4].mean, self.scaler_x[5].mean]], device=torch.device('cuda'))
+
+        self.std = torch.tensor([[self.scaler_x[0].std, self.scaler_x[1].std, self.scaler_x[2].std,
+                                  self.scaler_x[3].std, self.scaler_x[4].std, self.scaler_x[5].std]], device=torch.device('cuda'))
+
+        self.gp_likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=3,
+                                                                                # noise_prior=gpytorch.priors.SmoothedBoxPrior(0.0015, 1.5, sigma=0.0005)
+                                                                                ).cuda()
+        self.gp_model = BatchIndependentMultitaskGPModel(self.train_x_scaled, self.train_y_scaled, self.gp_likelihood).cuda()
+
+        # Find optimal model hyper-parameters
+        self.gp_model.train()
+        self.gp_likelihood.train()
+
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam(self.gp_model.parameters(), lr=0.0001)  # Includes GaussianLikelihood parameters
+        # self.gp_model.state_dict()
+        # self.gp_model.load_state_dict(st)
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.gp_likelihood, self.gp_model)
+
+        for k in range(training_iterations):
+            for g in optimizer.param_groups:
+                if k < 50:
+                    g['lr'] = 0.1
+                elif k < 100:
+                    g['lr'] = 0.0001
+                else:
+                    g['lr'] = 0.000001
+
+            optimizer.zero_grad()
+            output = self.gp_likelihood(self.gp_model(self.train_x_scaled))
+            loss = -mll(output, self.train_y_scaled)
+            loss.backward()
+            if k % 99 == 0:
+                print('Iter %d/%d - Loss: %.3f' % (k + 1, training_iterations, loss.item()))
+            optimizer.step()
+
+        # Set into eval mode
+        self.gp_model.eval()
+        self.gp_likelihood.eval()
+        self.trained = True
+        print(len(self.x_samples[0]))
+
+
+
+
     def train_gp_min_variance(self, num_of_new_samples=40):
         st_model = None
         st_like = None
         for i in range(num_of_new_samples):
             torch.cuda.empty_cache()
             if not self.trained:
+                # Total Dataset is empty 
                 for _ in range(2):
-                    for j in range(6):
+                    # Add the first 2 samples from current lap to the dataset
+                    for j in range(6): # Iterate of inputs
                         self.x_samples[j].append(self.x_measurements[j].pop(0))
-                    for j in range(3):
+                    for j in range(3): # Iterate of outputs (y of the GP)
                         self.y_samples[j].append(self.y_measurements[j].pop(0))
             else:
                 errors = []
 
+                # Construct X and Y from current lap
                 state_vect = np.array([
                     np.zeros(len(self.x_measurements[0])),
                     np.zeros(len(self.x_measurements[0])),
@@ -582,18 +665,23 @@ class GPEnsembleModel:
                 control_vect = np.array([self.x_measurements[4], self.x_measurements[5]])
 
                 with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                    # Get the mean and mean + 2std of the GP
                     mean, lower, upper = self.scale_and_predict_model_step(state_vect, control_vect)
 
                 if i <= num_of_new_samples / 4.0:
+                    # Check the magnitude of 2std of the GP (yaw rate)
                     errors = abs(upper[2] - mean[2])
                 elif i <= num_of_new_samples / 4.0 * 2.0:
+                    # Check the magnitude of 2std of the GP (vx)
                     errors = abs(upper[0] - mean[0])
                 elif i <= num_of_new_samples / 4.0 * 3.0:
+                    # Check the magnitude of 2std of the GP (vy)
                     errors = abs(upper[1] - mean[1])
                 # elif i <= num_of_new_samples / 5.0 * 4.0:
                 #     errors = np.abs((upper[0] - mean[0]) / self.scaler_y[0].std) + np.abs(
                 #         (upper[1] - mean[1]) / self.scaler_y[1].std) + np.abs((upper[2] - mean[2]) / self.scaler_y[2].std)
                 else:
+                    # Check the error in the mean of the GP (vy)
                     errors = abs(mean[1] - self.y_measurements[1])
                     # errors = 1.0 - abs(upper[1] - mean[1])
 
@@ -602,6 +690,7 @@ class GPEnsembleModel:
 
                 idx = np.argmax(errors)
 
+                # Total Dataset => Total Dataset + Worst sample from current lap
                 for j in range(6):
                     self.x_samples[j].append(self.x_measurements[j].pop(idx))
                 for j in range(3):
@@ -717,5 +806,5 @@ class GPEnsembleModel:
             self.trained = True
             print(len(self.x_samples[0]))
 
-        self.x_measurements = None
-        self.y_measurements = None
+        self.x_measurements = [[] for i in range(6)]
+        self.y_measurements = [[] for i in range(3)]

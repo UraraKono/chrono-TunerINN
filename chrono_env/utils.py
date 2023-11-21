@@ -1,15 +1,15 @@
 import pychrono as chrono
 import pychrono.vehicle as veh
 import numpy as np
-import math
+from dataclasses import dataclass, field
 
 def init_vehicle(self):
     # Create the vehicle system
     my_hmmwv = veh.HMMWV_Full()
+    # ini_wheel_ang_vel = self.vx / my_hmmwv.GetTire(0, veh.LEFT).GetRadius()
+    # my_hmmwv.SetInitWheelAngVel({0, 0, 0, 0})
     my_hmmwv.SetContactMethod(chrono.ChContactMethod_SMC)
     my_hmmwv.SetChassisFixed(False)
-    # my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
-    # my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos,chrono.QUNIT))
     self.ini_pos = chrono.ChVectorD(self.x0, self.y0, 0.5)
     ini_quat = chrono.Q_from_AngZ(self.w0)
     my_hmmwv.SetInitPosition(chrono.ChCoordsysD(self.ini_pos, ini_quat))
@@ -25,9 +25,7 @@ def init_vehicle(self):
     my_hmmwv.SetSteeringVisualizationType(veh.VisualizationType_PRIMITIVES)
     my_hmmwv.SetWheelVisualizationType(veh.VisualizationType_PRIMITIVES)
     my_hmmwv.SetTireVisualizationType(veh.VisualizationType_PRIMITIVES)
-
     self.my_hmmwv = my_hmmwv
-    # return my_hmmwv
 
 def init_terrain(self, friction, reduced_waypoints):
     # Define the patch coordinates
@@ -63,18 +61,6 @@ def init_terrain(self, friction, reduced_waypoints):
                              terrainLength, terrainWidth)
     patch_base.SetTexture(veh.GetDataFile("terrain/textures/grass.jpg"), 200, 200) #concrete, dirt, grass, tile4
 
-    # debug patch viz_patch
-    # minfo = chrono.ChContactMaterialData()
-    # minfo.mu = 0.8
-    # minfo.cr = 0.01
-    # minfo.Y = 2e7
-    # patch_mat_base2 = minfo.CreateMaterial(self.my_hmmwv.GetSystem().GetContactMethod())
-    # print("contact method",self.my_hmmwv.GetSystem().GetContactMethod())
-    # self.viz_patch = self.terrain.AddPatch(patch_mat_base2, chrono.CSYSNORM, 200, 200)
-    # patch_mat_base2.SetColor(chrono.ChColor(1, 1, 1))
-    # patch_mat_base2.SetTexture(veh.GetDataFile("terrain/textures/tile4.jpg"), 200, 200)
-
-
     # Loop over the patch materials and coordinates to add each patch to the terrain
     patches = []
     for i, patch_mat in enumerate(patch_mats):
@@ -86,7 +72,7 @@ def init_terrain(self, friction, reduced_waypoints):
         else:    
             s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
 
-        print("s", s)
+        # print("s", s)
         r = chrono.ChQuaternionD()
         r.Q_from_AngZ(psi)
         # print('r',r)
@@ -111,8 +97,6 @@ def init_terrain(self, friction, reduced_waypoints):
         patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
 
     self.terrain.Initialize()
-
-    # return self.terrain, self.viz_patch
 
 def init_irrlicht_vis(ego_vehicle):
     # Create the vehicle Irrlicht interface
@@ -145,7 +129,6 @@ def get_vehicle_state(self):
     yaw_rate = chassis_velocity.z
 
     euler_angles = rotation.Q_to_Euler123()
-    # print("Vehicle rotation (Euler angles):", euler_angles)
     roll_angle = euler_angles.x
     pitch_angle = euler_angles.y
     yaw_angle = euler_angles.z
@@ -203,14 +186,8 @@ def get_vehicle_state(self):
     # acc = vehicle.GetVehicle().GetAcc()
     # print("acc", acc)
 
-    max_steering_angle = vehicle.GetVehicle().GetMaxSteeringAngle()
-    # print("max steering angle:", max_steering_angle)
-
-    # print("steering angle", driver_inputs.m_steering)
-
     # get vehicle mass
-    mass = vehicle.GetVehicle().GetMass()
-    # print("Vehicle mass:", mass)
+    # mass = vehicle.GetVehicle().GetMass()
 
     # Get tire force
     tf_FL = vehicle.GetVehicle().GetTire(0, veh.LEFT).ReportTireForce(self.terrain)
@@ -234,20 +211,18 @@ def get_vehicle_state(self):
     # print("   Rx_left:   ", Rx_left)
     # print("   Rx_right:  ", Rx_right)
 
-    # my_vehicle = veh.ChWheeledVehicle("my_vehicle")
     # my_driver = veh.ChDriver(vehicle.GetVehicle()) #This command does NOT work. Never use ChDriver!
     # throttle = my_driver.GetThrottle()
-    # steering = my_driver.GetSteering() # steering input [-1,+1]
-    # braking = my_driver.GetBraking()
 
-    # steering = veh.DriverInputs().m_steering
-    # steering = self.driver_inputs.m_steering
-    steering = (get_steering(self, 0, 0)+get_steering(self, 0, 1))/2 # average of front wheels
+    # Get the max steering angle
+    max_steering_angle = vehicle.GetVehicle().GetMaxSteeringAngle()
+    steering = self.driver_inputs.m_steering * max_steering_angle
+    # print("max steering angle in get_vehicle_state", max_steering_angle)
+
+    # steering = (get_steering(self, 0, 0)+get_steering(self, 0, 1))/2 # average of front wheels
 
 
-    driver_glob_location = vehicle.GetVehicle().GetDriverPos()  # global location of the driver
-    # (Include the rest of the code inside the original loop)
-
+    # driver_glob_location = vehicle.GetVehicle().GetDriverPos()  # global location of the driver
 
     # vehicle state for single-track model
     vehicle_state = np.array([x,  # x
@@ -256,7 +231,7 @@ def get_vehicle_state(self):
                               yaw_angle,  # yaw angle
                               vy,  # vy
                               yaw_rate,  # yaw rate
-                              steering*max_steering_angle,  # steering angle
+                              steering  # steering angle
                             ])
     # print("vehicle state:", vehicle_state)
 
@@ -265,43 +240,50 @@ def get_vehicle_state(self):
 def get_steering(self, front_rear, right_left): 
     # front_rear: 0 for front, 1 for rear
     # right_left: 0 for right, 1 for left
-
     wheel = self.my_hmmwv.GetVehicle().GetWheel(front_rear, right_left).GetSpindle()
-
     wheel_normal_abs = wheel.GetA().Get_A_Yaxis()
-
     wheel_normal_loc = self.my_hmmwv.GetChassisBody().TransformDirectionParentToLocal(wheel_normal_abs)
-
     wheel_angle = np.arctan2(wheel_normal_loc.y, wheel_normal_loc.x) - np.pi/2
 
     return wheel_angle
 
-def reset_config(self, vehicle_params):
-    print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
-    self.config.LENGTH      = vehicle_params.LENGTH
-    self.config.WIDTH       = vehicle_params.WIDTH
-    self.config.LR          = vehicle_params.LR
-    self.config.LF          = vehicle_params.LF
-    self.config.WB          = vehicle_params.WB
-    self.config.MIN_STEER   = vehicle_params.MIN_STEER
-    self.config.MAX_STEER   = vehicle_params.MAX_STEER
-    self.config.MAX_STEER_V = vehicle_params.MAX_STEER_V
-    self.config.MAX_SPEED   = vehicle_params.MAX_SPEED
-    self.config.MIN_SPEED   = vehicle_params.MIN_SPEED
-    self.config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
-    self.config.MAX_DECEL   = vehicle_params.MAX_DECEL
-    self.config.MASS        = vehicle_params.MASS
-    print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
+# def reset_config(self, vehicle_params):
+#     # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
+#     self.config.LENGTH      = vehicle_params.LENGTH
+#     self.config.WIDTH       = vehicle_params.WIDTH
+#     self.config.LR          = vehicle_params.LR
+#     self.config.LF          = vehicle_params.LF
+#     self.config.WB          = vehicle_params.WB
+#     self.config.MIN_STEER   = vehicle_params.MIN_STEER
+#     self.config.MAX_STEER   = vehicle_params.MAX_STEER
+#     self.config.MAX_STEER_V = vehicle_params.MAX_STEER_V
+#     self.config.MAX_SPEED   = vehicle_params.MAX_SPEED
+#     self.config.MIN_SPEED   = vehicle_params.MIN_SPEED
+#     self.config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
+#     self.config.MAX_DECEL   = vehicle_params.MAX_DECEL
+#     self.config.MASS        = vehicle_params.MASS
+#     # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
+
+def reset_config(config, vehicle_params):
+    # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
+    config.LENGTH      = vehicle_params.LENGTH
+    config.WIDTH       = vehicle_params.WIDTH
+    config.LR          = vehicle_params.LR
+    config.LF          = vehicle_params.LF
+    config.WB          = vehicle_params.WB
+    config.MIN_STEER   = vehicle_params.MIN_STEER
+    config.MAX_STEER   = vehicle_params.MAX_STEER
+    config.MAX_STEER_V = vehicle_params.MAX_STEER_V
+    config.MAX_SPEED   = vehicle_params.MAX_SPEED
+    config.MIN_SPEED   = vehicle_params.MIN_SPEED
+    config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
+    config.MAX_DECEL   = vehicle_params.MAX_DECEL
+    config.MASS        = vehicle_params.MASS
+    # print("config.MASS",config.MASS, "config.MIN_SPEED",config.MIN_SPEED)
 
 class VehicleParameters:
     def __init__(self, vehicle):
         self.LENGTH: float = 4.298  # Length of the vehicle [m]
-        # WIDTH: float = 1.674  # Width of the vehicle [m]
-        # LR: float = 1.50876
-        # LF: float = 0.88392
-        # WB: float = 0.88392 + 1.50876  # Wheelbase [m]
-        # MIN_STEER: float = -0.4189  # maximum steering angle [rad]
-        # MAX_STEER: float = 0.4189  # maximum steering angle [rad]
         self.MAX_STEER_V: float = 3.2  # maximum steering speed [rad/s]
         self.MIN_STEER_V: float = 3.2  # maximum steering speed [rad/s]
         self.MAX_SPEED: float = 45.0  # maximum speed [m/s]
@@ -322,6 +304,10 @@ class VehicleParameters:
         self.LR = self.WB - self.LF
 
 class LongitudinalSpeedPIDController:
+    '''
+    Based on
+    https://github.com/projectchrono/gym-chrono/blob/master/gym_chrono/envs/utils/pid_controller.py
+    '''
     def __init__(self, vehicle):
         self.Kp = 0
         self.Ki = 0
@@ -345,7 +331,6 @@ class LongitudinalSpeedPIDController:
     def Advance(self, target_speed, step):
         self.target_speed = target_speed
 
-        # self.speed = self.vehicle.GetVehicleSpeed()
         vx = self.vehicle.state[2]
 
         # Calculate current error
@@ -369,6 +354,10 @@ class LongitudinalSpeedPIDController:
         return throttle
     
 class SteeringAnglePIDController:
+    '''
+    Based on
+    https://github.com/projectchrono/gym-chrono/blob/master/gym_chrono/envs/utils/pid_controller.py
+    '''
     def __init__(self, vehicle):
         self.Kp = 0
         self.Ki = 0
@@ -396,8 +385,7 @@ class SteeringAnglePIDController:
 
         # Calculate current error
         err = self.target_angle - steering
-        # print("steering error", err)
-        print("target steering angle",target_angle,"error", err)
+        # print("target steering angle [deg]",target_angle*180/np.pi,"error [deg]", err*180/np.pi)
 
         # Estimate error derivative (backward FD approximation)
         self.errd = (err - self.err) / step
@@ -409,8 +397,8 @@ class SteeringAnglePIDController:
         self.err = err
 
         # Return PID output (steering value)
-        steering_command = self.Kp * self.err + self.Ki * self.erri + self.Kd * self.errd #[deg]
-        steering_command = steering_command / self.vehicle.GetVehicle().GetMaxSteeringAngle() #[-1,1]
+        steering_command = self.Kp * self.err + self.Ki * self.erri + self.Kd * self.errd # [rad]
+        steering_command = steering_command / self.vehicle.GetVehicle().GetMaxSteeringAngle() # [-1,1]
         steering_command = np.clip(steering_command, -1.0, 1.0)
 
         return steering_command

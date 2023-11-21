@@ -341,16 +341,16 @@ class GPEnsembleModelFrenet:
         A[1, 3] = self.config.DTK * (vx * np.cos(eyaw) - vy * np.sin(eyaw))
         A[1, 4] = self.config.DTK * np.cos(eyaw)
 
-        A[2, 2] += h1[0]  # dh1/dvx
-        A[2, 4] = h1[1]  # dh1/dvy
-        A[2, 5] = h1[2]  # dh1/d omega
-        A[2, 6] = h1[3]  # dh1/d delta
-
         A[3, 1] = - self.config.DTK * (vx * np.cos(eyaw) - vy * np.sin(eyaw)) / (cur ** 2) * curvature ** 2
         A[3, 2] = - self.config.DTK * np.cos(eyaw) / cur * curvature
         A[3, 3] += self.config.DTK * (vx * np.sin(eyaw) + vy * np.cos(eyaw)) / cur * curvature
         A[3, 4] = self.config.DTK * np.sin(eyaw) / cur * curvature
         A[3, 5] = self.config.DTK * 1.0
+
+        A[2, 2] += h1[0]  # dh1/dvx
+        A[2, 4] = h1[1]  # dh1/dvy
+        A[2, 5] = h1[2]  # dh1/d omega
+        A[2, 6] = h1[3]  # dh1/d delta
 
         A[4, 2] = h2[0]  # dh2/dvx
         A[4, 4] += h2[1]  # dh2/dvy
@@ -605,6 +605,74 @@ class GPEnsembleModelFrenet:
         self.gp_likelihood.eval()
         self.trained = True
         print(len(self.x_samples[0]))
+
+    def train_gp_new(self, num_of_new_samples=40): 
+        training_iterations = 500
+
+        self.x_samples = self.x_measurements.copy()
+        self.y_samples = self.y_measurements.copy()
+
+        train_x = torch.tensor([self.x_samples[k] for k in range(6)])
+        train_y = torch.tensor([self.y_samples[k] for k in range(3)])
+        train_y = train_y.contiguous()
+
+
+        self.train_x_scaled = torch.transpose(torch.vstack((self.scaler_x[0].fit_transform(train_x[0]),
+                                                            self.scaler_x[1].fit_transform(train_x[1]),
+                                                            self.scaler_x[2].fit_transform(train_x[2]),
+                                                            self.scaler_x[3].fit_transform(train_x[3]),
+                                                            self.scaler_x[4].fit_transform(train_x[4]),
+                                                            self.scaler_x[5].fit_transform(train_x[5]),)), 0, 1).cuda()
+
+        self.train_y_scaled = torch.transpose(torch.vstack((self.scaler_y[0].fit_transform(train_y[0]),
+                                                            self.scaler_y[1].fit_transform(train_y[1]),
+                                                            self.scaler_y[2].fit_transform(train_y[2]),)), 0, 1).cuda()
+
+        self.means = torch.tensor([[self.scaler_x[0].mean, self.scaler_x[1].mean, self.scaler_x[2].mean,
+                                    self.scaler_x[3].mean, self.scaler_x[4].mean, self.scaler_x[5].mean]], device=torch.device('cuda'))
+
+        self.std = torch.tensor([[self.scaler_x[0].std, self.scaler_x[1].std, self.scaler_x[2].std,
+                                  self.scaler_x[3].std, self.scaler_x[4].std, self.scaler_x[5].std]], device=torch.device('cuda'))
+
+        self.gp_likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=3,
+                                                                                # noise_prior=gpytorch.priors.SmoothedBoxPrior(0.0015, 1.5, sigma=0.0005)
+                                                                                ).cuda()
+        self.gp_model = BatchIndependentMultitaskGPModel(self.train_x_scaled, self.train_y_scaled, self.gp_likelihood).cuda()
+
+        # Find optimal model hyper-parameters
+        self.gp_model.train()
+        self.gp_likelihood.train()
+
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam(self.gp_model.parameters(), lr=0.0001)  # Includes GaussianLikelihood parameters
+        # self.gp_model.state_dict()
+        # self.gp_model.load_state_dict(st)
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(self.gp_likelihood, self.gp_model)
+
+        for k in range(training_iterations):
+            for g in optimizer.param_groups:
+                if k < 50:
+                    g['lr'] = 0.1
+                elif k < 100:
+                    g['lr'] = 0.0001
+                else:
+                    g['lr'] = 0.000001
+
+            optimizer.zero_grad()
+            output = self.gp_likelihood(self.gp_model(self.train_x_scaled))
+            loss = -mll(output, self.train_y_scaled)
+            loss.backward()
+            if k % 99 == 0:
+                print('Iter %d/%d - Loss: %.3f' % (k + 1, training_iterations, loss.item()))
+            optimizer.step()
+
+        # Set into eval mode
+        self.gp_model.eval()
+        self.gp_likelihood.eval()
+        self.trained = True
+        print(len(self.x_samples[0]))
+
 
     def train_gp_min_variance(self, num_of_new_samples=40):
         st_model = None

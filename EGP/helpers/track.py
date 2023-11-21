@@ -53,7 +53,7 @@ class Track:
         self.left_boundary = np.array([self.trajectory[:, 1] - vectors[:, 0], self.trajectory[:, 2] - vectors[:, 1]]).T
 
     def calculate_trajectory(self, reference_speed):
-        max_distance_between_points = 8.0
+        max_distance_between_points = 1.0
         for i in range(self.cline_desc.shape[0] - 1):
             segment_length = self.cline_desc[i + 1, 0] - self.cline_desc[i, 0]
             num_points_on_segment = int(np.ceil(segment_length / max_distance_between_points))

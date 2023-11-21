@@ -143,6 +143,7 @@ class STMPCPlanner:
             if waypoints.shape[1] < 3 or len(waypoints.shape) != 2:
                 raise ValueError("Waypoints needs to be a (Nxm), m >= 3, numpy array!")
             self.waypoints = waypoints
+            print("ref speed", waypoints[:,5])
             self.waypoints_distances = np.linalg.norm(self.waypoints[1:, (1, 2)] - self.waypoints[:-1, (1, 2)], axis=1)
         else:
             if self.waypoints is None:

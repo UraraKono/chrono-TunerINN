@@ -161,7 +161,7 @@ class PurePursuitPlanner:
         """
         loads waypoints
         """
-        self.waypoints = np.loadtxt("./EGP/"+conf.wpt_path, delimiter=conf.wpt_delim, skiprows=conf.wpt_rowskip)
+        self.waypoints = np.loadtxt(conf.wpt_path, delimiter=conf.wpt_delim, skiprows=conf.wpt_rowskip)
 
     def render_waypoints(self, e):
         """
@@ -215,7 +215,7 @@ class PurePursuitPlanner:
             return 4.0, 0.0
 
         speed, steering_angle = get_actuation(pose_theta, self.lookahead_point, position, lookahead_distance, self.wheelbase)
-        print("STEERING ANGLE:" , steering_angle)
+        # print("STEERING ANGLE:" , steering_angle)
         speed = vgain * speed
 
         return speed, steering_angle

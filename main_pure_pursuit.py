@@ -25,7 +25,7 @@
 
 import pychrono as chrono
 import pychrono.vehicle as veh
-# import pychrono.irrlicht as chronoirr
+import pychrono.irrlicht as chronoirr
 import numpy as np
 import json
 import matplotlib.pyplot as plt
@@ -58,6 +58,9 @@ constant_friction = 0.7
 # number_of_laps = 20
 SAVE_MODEL = True
 t_end = 60
+# Init Pure-Pursuit regulator
+work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
+
 # --------------
 
 env = ChronoEnv(step_size, throttle_value)
@@ -101,9 +104,11 @@ else:
                                         [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
                                         [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
 
-    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=15.0)
+    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=10.0)
     waypoints = track.get_reference_trajectory()
     print('waypoints\n',waypoints.shape)
+
+    conf.wpt_path="./EGP/"+conf.wpt_path
  
 # friction = [0.4 + i/waypoints.shape[0] for i in range(waypoints.shape[0])]
 friction = [constant_friction for i in range(waypoints.shape[0])]
@@ -132,7 +137,7 @@ env.make(config=MPCConfigEXT(), friction=friction,waypoints=waypoints,
 # ---------------
 
 env.my_hmmwv.GetVehicle().EnableRealtime(True)
-num_laps = 5  # Number of laps
+num_laps = 3  # Number of laps
 lap_counter = 0
 
 # Reset the simulation time
@@ -140,9 +145,12 @@ env.my_hmmwv.GetSystem().SetChTime(0)
 
 reset_config(env, env.vehicle_params)  
 
-env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config), 
-                                waypoints=waypoints,
-                                config=env.config) #path_follow_mpc.py
+planner_pp = PurePursuitPlanner(conf, env.vehicle_params.WB)
+planner_pp.waypoints = waypoints.copy()
+
+# env.planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=env.config), 
+#                                 waypoints=waypoints,
+#                                 config=env.config) #path_follow_mpc.py
 
 speed    = 0
 steering = 0
@@ -150,24 +158,22 @@ control_list = []
 state_list = []
 
 execution_time_start = time.time()
+ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
 
 while lap_counter < num_laps:
     # Render scene
     env.render()
 
     if (env.step_number % (env.control_step) == 0):
-        u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, env.mpc_ox, env.mpc_oy = env.planner_ekin_mpc.plan(env.my_hmmwv.state)
-        u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
-        # print("u", u)
-        speed = env.my_hmmwv.state[2] + u[0]*env.planner_ekin_mpc.config.DTK
-        steering = env.driver_inputs.m_steering*env.config.MAX_STEER + u[1]*env.planner_ekin_mpc.config.DTK # [deg]
-        # print("steering input", steering)
-        # Debugging for toe-in angle
-        # steering = 1*env.config.MAX_STEER
-        # speed = 3.0
+        pos = env.my_hmmwv.GetVehicle().GetPos()
+        planner_pp.waypoints = waypoints.copy()
+        speed, steering = planner_pp.plan(pos.x, pos.y, env.my_hmmwv.state[3],
+                                                work['tlad'], work['vgain'])
+        print("pure pursuit input speed", speed, "steering angle [rad]", steering)
 
-        control_list.append(u) # saving acceleration and steering speed
-        state_list.append(env.my_hmmwv.state)
+        pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1],  pos.z)
+        ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+
     
     env.step(speed, steering)
 
@@ -178,11 +184,10 @@ while lap_counter < num_laps:
 execution_time_end = time.time()
 print("execution time: ", execution_time_end - execution_time_start)
 
-control_list = np.vstack(control_list)
-state_list = np.vstack(state_list)
-
-np.save("data/control.npy", control_list)
-np.save("data/state.npy", state_list)
+# control_list = np.vstack(control_list)
+# state_list = np.vstack(state_list)
+# np.save("data/control.npy", control_list)
+# np.save("data/state.npy", state_list)
 
 plt.figure()
 plt.plot(env.t_stepsize, env.speed)
@@ -199,6 +204,7 @@ plt.scatter(waypoints[0,1],waypoints[0,2], c='r',s=5, label="start")
 plt.title("trajectory")
 plt.xlabel("x [m]")
 plt.ylabel("y [m]")
+plt.legend()
 plt.savefig("trajectory.png")
 
 plt.figure()
