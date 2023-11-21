@@ -157,11 +157,10 @@ if model_in_first_lap == "pure_pursuit":
 if gp_mpc_type == 'frenet':
     planner_gp_mpc_frenet_config = MPCConfigGPFrenet()
     reset_config(planner_gp_mpc_frenet_config, env.vehicle_params)
-    planner_gp_mpc_frenet = STMPCPlanner(model=GPEnsembleModelFrenet(config=planner_gp_mpc_frenet_config, track=track), waypoints=waypoints.copy(),
+    planner_gp_mpc_frenet = STMPCPlanner(model=GPEnsembleModelFrenet(config=planner_gp_mpc_frenet_config, track=track),
+                                          waypoints=waypoints.copy(),
                                         config=planner_gp_mpc_frenet_config, track=track)
     planner_gp_mpc_frenet.trajectry_interpolation = 1
-    # reset_config(planner_gp_mpc_frenet, env.vehicle_params)
-    reset_config(planner_gp_mpc_frenet.config, env.vehicle_params)
 
 elif gp_mpc_type == 'cartesian':
     planner_gp_mpc_config = MPCConfigGP()
@@ -169,19 +168,13 @@ elif gp_mpc_type == 'cartesian':
     planner_gp_mpc = STMPCPlanner(model=GPEnsembleModel(config=planner_gp_mpc_config),
                                   waypoints=waypoints.copy(),config=planner_gp_mpc_config)
 
-    # planner_gp_mpc_config = MPCConfigGP()
-    # planner_gp_mpc = STMPCPlanner(model=GPEnsembleModel(config=MPCConfigGP()),
-    #                               waypoints=waypoints.copy(),config=MPCConfigGP())
-    # reset_config(planner_gp_mpc.config, env.vehicle_params)
-    
-
 planner_ekin_mpc_config = MPCConfigEXT()
 reset_config(planner_ekin_mpc_config, env.vehicle_params)
 planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=planner_ekin_mpc_config), 
-                                waypoints=waypoints,
+                                waypoints=waypoints.copy(),
                                 config=planner_ekin_mpc_config) #path_follow_mpc.py
 # reset_config(planner_ekin_mpc, env.vehicle_params)
-reset_config(planner_ekin_mpc.config, env.vehicle_params)
+# reset_config(planner_ekin_mpc.config, env.vehicle_params)
 
 speed    = 0
 steering = 0 # [-1,1]
@@ -317,6 +310,7 @@ while env.lap_counter < num_laps:
     else:
         print("gp_model_trained", gp_model_trained)
         if gp_mpc_type == 'cartesian':
+            planner_gp_mpc.waypoints = waypoints.copy()
             u, mpc_ref_path_x, mpc_ref_path_y, mpc_pred_x, mpc_pred_y, mpc_ox, mpc_oy = planner_gp_mpc.plan(vehicle_state)
             u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
 

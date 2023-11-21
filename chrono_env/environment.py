@@ -137,6 +137,8 @@ class ChronoEnv:
         #     self.config = kwargs['config']
         # except:
         #     self.config = None
+        if 'config' in kwargs:
+            self.config = kwargs['config']
         if 'map' in kwargs:
             warnings.warn("'map' is not supported. Use 'waypoints' instead.", stacklevel=2)
             # What stacklevel should be used? 
@@ -252,13 +254,13 @@ class ChronoEnv:
             self.lap_flag = False
 
         #Advance the PID controller every simulation time step
-        self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
-        self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
+        # self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
+        # self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
 
         # every control_step
         if (self.step_number % (self.control_step) == 0) : 
-            # self.speedPID_output = self.speedPID.Advance(target_speed, self.control_period)
-            # self.steeringPID_output = self.steeringPID.Advance(target_steering, self.control_period)
+            self.speedPID_output = self.speedPID.Advance(target_speed, self.control_period)
+            self.steeringPID_output = self.steeringPID.Advance(target_steering, self.control_period)
             # self.t_controlperiod.append(self.time)
             
             if self.mpc_ox is not None and not np.any(np.isnan(self.mpc_ox)):
@@ -294,6 +296,23 @@ class ChronoEnv:
         self.toein_RR.append(steering_RR*180/np.pi)
         self.steering_driver.append(self.driver_inputs.m_steering*self.vehicle_params.MAX_STEER*180/np.pi)
 
+        observation = {'poses_x': self.my_hmmwv.state[0],'poses_y': self.my_hmmwv.state[1],
+                       'vx':self.my_hmmwv.state[2], 'poses_theta': self.my_hmmwv.state[3],
+                       'vy':self.my_hmmwv.state[4],'yaw_rate':self.my_hmmwv.state[5],'steering':self.my_hmmwv.state[6]}
+        reward = 0
+        done = False
+        info = {}
+
+            # vehicle_state = np.array([x,  # x
+            #                   y,  # y
+            #                   vx,  # vx
+            #                   yaw_angle,  # yaw angle
+            #                   vy,  # vy
+            #                   yaw_rate,  # yaw rate
+            #                   steering  # steering angle
+            #                 ])
+
+        return observation, reward, done, info
         
     def render(self) -> None:
         if (self.step_number % (self.render_steps) == 0) :

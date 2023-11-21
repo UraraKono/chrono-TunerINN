@@ -57,12 +57,12 @@ MAP_DIR = './f1tenth-racetrack/'
 SAVE_DIR = './data/'
 t_end = 60
 map_ind = 39 # 39 Zandvoort_raceline
-ref_vx = 10
+ref_vx = 8.0
 # Init Pure-Pursuit regulator
 work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
 # --------------
 
-env = ChronoEnv(step_size, throttle_value)
+env = ChronoEnv()
 
 # Load map config file
 with open('EGP/maps/config_example_map.yaml') as file:
@@ -90,6 +90,7 @@ waypoints[:, -2] = ref_vx
 reduced_waypoints = waypoints[::env.reduced_rate, :] 
 s_max = np.max(reduced_waypoints[:, 0])
 friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
+print("friction len", len(friction))
 # friction = [0.4 + i/waypoints.shape[0] for i in range(reduced_waypoints.shape[0])]
 
 # Kp = 0.6
@@ -99,7 +100,7 @@ Kp = 1
 Ki = 0.01
 Kd = 0
 
-env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,
+env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,sample_rate_waypoints=env.reduced_rate,
          reduced_waypoints=reduced_waypoints, speedPID_Gain=[Kp, Ki, Kd],
          steeringPID_Gain=[1,0,0], x0=reduced_waypoints[0,1], y0=reduced_waypoints[0,2], w0=waypoints[0,3]-np.pi)
 

@@ -35,6 +35,7 @@ def init_terrain(self, friction, reduced_waypoints):
     young_modulus_values = [2e7] * len(patch_coords)
     patch_mats = [chrono.ChMaterialSurfaceSMC() for _ in range(len(patch_coords))]
     for i, patch_mat in enumerate(patch_mats):
+        # print("i", i)
         patch_mat.SetFriction(friction[i])
         patch_mat.SetRestitution(rest_values[i])
         patch_mat.SetYoungModulus(young_modulus_values[i])
