@@ -50,7 +50,7 @@ SAVE_MODEL = True
 MAP_DIR = './f1tenth-racetrack/'
 SAVE_DIR = './data/'
 t_end = 2000
-map_ind = 14 # 39 Zandvoort_raceline
+map_ind = 17 # 39 Zandvoort_raceline
 map_scale = 10
 patch_scale = 1.5 # map_ind 16: 1.5
 ref_vx = 15.0
@@ -80,12 +80,14 @@ print("waypoints\n",waypoints.shape)
 if waypoints.shape[1] == 4:
     print("centerline to frenet")
     waypoints = centerline_to_frenet(waypoints)
-    reduced_rate = 1
+    # reduced_rate = 1
     # map_ind = 16
     reduced_rate = 2
+    w0=waypoints[0,3]-np.pi
 else: # raceline
     print("reduced_rate is 5")
     reduced_rate = 5
+    w0=waypoints[0,3]
 
 waypoints[:, -2] = ref_vx
 
@@ -110,7 +112,7 @@ Kd = 0
 env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints, patch_scale=patch_scale,
          sample_rate_waypoints=reduced_rate, friction=friction, speedPID_Gain=[Kp, Ki, Kd],
          steeringPID_Gain=[0.5,0,0], x0=reduced_waypoints[0,1], 
-         y0=reduced_waypoints[0,2], w0=waypoints[0,3]-np.pi)
+         y0=reduced_waypoints[0,2], w0=w0)
 
 # ---------------
 # Simulation loop
@@ -201,7 +203,7 @@ while env.lap_counter < num_laps:
         control_list.append(u) # saving acceleration and steering speed
         state_list.append(env.my_hmmwv.state)
     
-    observation, reward, done, info = env.step(speed, steering)
+    observation, reward, done, info = env.step(steering, speed)
 
 
     if env.time > t_end:

@@ -219,7 +219,7 @@ class ChronoEnv:
 
     # def reset(self) -> None:
 
-    def step(self, target_speed, target_steering) -> None:
+    def step(self, target_steering, target_speed) -> None:
         # Driver inputs
         self.time = self.my_hmmwv.GetSystem().GetChTime()
         self.speedPID_output = np.clip(self.speedPID_output, -1.0, +1.0)

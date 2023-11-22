@@ -169,7 +169,7 @@ while lap_counter < num_laps:
         control_list.append(u) # saving acceleration and steering speed
         state_list.append(env.my_hmmwv.state)
     
-    env.step(speed, steering)
+    env.step(steering, speed)
 
     if env.time > t_end:
         print("env.time",env.time)

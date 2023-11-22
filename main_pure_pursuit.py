@@ -176,7 +176,7 @@ while lap_counter < num_laps:
         ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
 
     
-    env.step(speed, steering)
+    env.step(steering, speed)
 
     if env.time > t_end:
         print("env.time",env.time)

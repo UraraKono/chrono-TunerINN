@@ -51,7 +51,7 @@ from utilities import load_map, friction_func, centerline_to_frenet
 step_size = 2e-3
 throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 # Program parameters
-model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
+model_in_first_lap = 'pure_pursuit'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
 map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
 map_ind = 8 ####You also need to select the corresponding ind if not custom_track!!!!
@@ -92,10 +92,12 @@ if not map_name == 'custom_track':
     if waypoints.shape[1] == 4:
         print('centerline')
         waypoints = centerline_to_frenet(waypoints)
-        env.reduced_rate = 1
+        env.reduced_rate = 2
+        w0=waypoints[0,3]-np.pi
     else: # raceline
         print('raceline')
         env.reduced_rate = 5
+        w0=waypoints[0,3]
 
     # sample every env.reduced_rate 10 waypoints for patch in visualization
     reduced_waypoints = waypoints[::env.reduced_rate, :] 
@@ -116,11 +118,12 @@ elif map_name == 'custom_track':
                                         [1 / 25, 0.0, -1 / 25, 0.0, 1 / 25, 0.0, 1 / 25, 0.0, 1/25],
                                         [0.0, np.pi, np.pi, np.pi / 2.0, np.pi / 2.0, 3.0 * np.pi / 2.0, 3.0 * np.pi / 2.0, 0.0, 0.0]]).T
 
-    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=15.0)
+    track = Track(centerline_descriptor=centerline_descriptor, track_width=10.0, reference_speed=constant_speed_ref)
     waypoints = track.get_reference_trajectory()
     print('waypoints\n',waypoints.shape)
     friction = [constant_friction for i in range(waypoints.shape[0])]
     reduced_waypoints = waypoints
+    w0=waypoints[0,3]
 
 # maps has its own speed reference but we want just constant speed reference
 if constant_speed:
@@ -144,15 +147,30 @@ Kd = 0
 env.make(friction=friction, waypoints=waypoints,
          reduced_waypoints=reduced_waypoints, speedPID_Gain=[Kp, Ki, Kd],
          steeringPID_Gain=[0.5,0,0], x0=waypoints[0,1], y0=waypoints[0,2],
-         w0=waypoints[0,3])
+         w0=w0)
 
 # ---------------
 # Simulation loop
 # ---------------
 
 if model_in_first_lap == "pure_pursuit":
+    # Init Pure-Pursuit regulator
+    work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
+    # work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 15, 'vgain': 1.0} # tlad: look ahead distance
+    if map_name != 'custom_track':
+        conf.wpt_path = MAP_DIR + conf.wpt_path
+    conf.wpt_xind = 1
+    conf.wpt_yind = 2
+    conf.wpt_vind = -2
     planner_pp = PurePursuitPlanner(conf, env.vehicle_params.WB)
     planner_pp.waypoints = waypoints.copy()
+
+    ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
+    ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+
+    plt.figure()
+    plt.plot(planner_pp.waypoints[:,1], planner_pp.waypoints[:,2], label="waypoints")
+    plt.show()
 
 if gp_mpc_type == 'frenet':
     planner_gp_mpc_frenet_config = MPCConfigGPFrenet()
@@ -304,9 +322,9 @@ while env.lap_counter < num_laps:
             u[1] = steer_angle
             u[0] = speed
 
-            # if env.lap_counter == 0:
-            #     u[0] += np.random.randn(1)[0] * 0.2
-            #     u[1] += np.random.randn(1)[0] * 0.01
+            if env.lap_counter == 0:
+                u[0] += np.random.randn(1)[0] * 0.2
+                u[1] += np.random.randn(1)[0] * 0.01
     else:
         print("gp_model_trained", gp_model_trained)
         if gp_mpc_type == 'cartesian':
@@ -414,7 +432,7 @@ while env.lap_counter < num_laps:
 
     # Run the simulation for one control period
     for i in range(int(env.control_step)):
-        env.step(speed, steering)
+        env.step(steering, speed)
         # Render scene
         env.render()
     laptime = env.time
