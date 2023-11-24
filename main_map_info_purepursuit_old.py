@@ -76,8 +76,10 @@ print("waypoints\n",waypoints.shape)
 if waypoints.shape[1] == 4:
     waypoints = centerline_to_frenet(waypoints)
     env.reduced_rate = 1
+    w0=waypoints[0,3]-np.pi
 else: # raceline
     env.reduced_rate = 5
+    w0=waypoints[0,3]
 
 # Rotate the map for 90 degrees in anti-clockwise direction 
 # to match the map with the vehicle's initial orientation
@@ -102,7 +104,7 @@ Kd = 0
 
 env.make(config=MPCConfigEXT(), friction=friction, waypoints=waypoints,sample_rate_waypoints=env.reduced_rate,
          reduced_waypoints=reduced_waypoints, speedPID_Gain=[Kp, Ki, Kd],
-         steeringPID_Gain=[1,0,0], x0=reduced_waypoints[0,1], y0=reduced_waypoints[0,2], w0=waypoints[0,3]-np.pi)
+         steeringPID_Gain=[1,0,0], x0=reduced_waypoints[0,1], y0=reduced_waypoints[0,2], w0=w0)
 
 # ---------------
 # Simulation loop
@@ -178,11 +180,11 @@ while lap_counter < num_laps:
 execution_time_end = time.time()
 print("execution time: ", execution_time_end - execution_time_start)
 
-control_list = np.vstack(control_list)
-state_list = np.vstack(state_list)
+# control_list = np.vstack(control_list)
+# state_list = np.vstack(state_list)
 
-np.save("data/control.npy", control_list)
-np.save("data/state.npy", state_list)
+# np.save("data/control.npy", control_list)
+# np.save("data/state.npy", state_list)
 
 plt.figure()
 plt.plot(env.t_stepsize, env.speed)

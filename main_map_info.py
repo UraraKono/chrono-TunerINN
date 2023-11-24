@@ -39,8 +39,6 @@ from EGP.helpers.closest_point import *
 from EGP.helpers.track import Track
 from chrono_env.environment import ChronoEnv
 from chrono_env.utils import *
-# from chrono_env.data_gen_utils import load_map, friction_func
-# from chrono_env.frenet_utils import centerline_to_frenet
 from utilities import load_map, friction_func, centerline_to_frenet
 
 # --------------
@@ -52,10 +50,11 @@ SAVE_DIR = './data/'
 t_end = 2000
 map_ind = 17 # 39 Zandvoort_raceline
 map_scale = 10
+map_reverse = False
 patch_scale = 1.5 # map_ind 16: 1.5
-ref_vx = 15.0
-control_model = "pure_pursuit" # options: ext_kinematic, pure_pursuit
-num_laps = 1  # Number of laps
+ref_vx = 8.0
+control_model = "ext_kinematic" # options: ext_kinematic, pure_pursuit
+num_laps = 5  # Number of laps
 # --------------
 
 '''
@@ -73,7 +72,7 @@ with open('EGP/maps/config_example_map.yaml') as file:
 conf = Namespace(**conf_dict)
 
 map_info = np.genfromtxt('map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
-waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=map_scale, reverse=False)
+waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=map_scale, reverse=map_reverse)
 print("waypoints\n",waypoints.shape)
 
 # Check if the waypoints are of the form [x_m, y_m, w_tr_right_m, w_tr_left_m]
@@ -84,10 +83,14 @@ if waypoints.shape[1] == 4:
     # map_ind = 16
     reduced_rate = 2
     w0=waypoints[0,3]-np.pi
+    if map_reverse:
+        w0 = waypoints[0,3]
 else: # raceline
     print("reduced_rate is 5")
     reduced_rate = 5
     w0=waypoints[0,3]
+    if map_reverse:
+        w0 = waypoints[0,3]-np.pi
 
 waypoints[:, -2] = ref_vx
 
@@ -98,16 +101,14 @@ friction = [friction_func(i,s_max) for i in range(reduced_waypoints.shape[0])]
 # friction = [1.0 + i/waypoints.shape[0] for i in range(reduced_waypoints.shape[0])]
 # friction = [1.0 for i in range(reduced_waypoints.shape[0])]
 
-# Kp = 0.6
-# Ki = 0.2
-# Kd = 0.3
-# Kp = 5
-# Ki = 0.01
-# Kd = 0
-# pure pursuit
-Kp = 1
-Ki = 0.01
-Kd = 0
+if control_model == "ext_kinematic":
+    Kp = 5
+    Ki = 0.01
+    Kd = 0
+elif control_model == "pure_pursuit":
+    Kp = 1
+    Ki = 0.01
+    Kd = 0
 
 env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints, patch_scale=patch_scale,
          sample_rate_waypoints=reduced_rate, friction=friction, speedPID_Gain=[Kp, Ki, Kd],
@@ -121,6 +122,7 @@ env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoin
 # Making sure that some config parameters are obtained from chrono, not from MPCConfigEXT
 if control_model == "ext_kinematic":
     planner_ekin_mpc_config = MPCConfigEXT()
+    planner_ekin_mpc_config.dlk = np.sqrt((waypoints[1, 1] - waypoints[0, 1]) ** 2 + (waypoints[1, 2] - waypoints[0, 2]) ** 2)
     reset_config(planner_ekin_mpc_config, env.vehicle_params)
     planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=planner_ekin_mpc_config), 
                                     waypoints=waypoints.copy(),
@@ -171,6 +173,13 @@ while env.lap_counter < num_laps:
             u[0] = u[0] / env.vehicle_params.MASS  # Force to acceleration
             speed = env.my_hmmwv.state[2] + u[0]*env.control_period
             steering = env.driver_inputs.m_steering*env.vehicle_params.MAX_STEER + u[1]*env.control_period # [-max steer,max steer]
+
+            if waypoints[:, 5][0] < 18.7:
+                waypoints[:, 5] += np.ones((waypoints[:, 5].shape[0],)) * 0.003
+            else:
+                waypoints[:, 5] += np.ones((waypoints[:, 5].shape[0],)) * 0.00015
+            planner_ekin_mpc.waypoints = waypoints.copy()
+
         elif control_model == "pure_pursuit":
             planner_pp.waypoints = waypoints.copy()
             speed, steering = planner_pp.plan(observation['poses_x'], observation['poses_y'], observation['poses_theta'],

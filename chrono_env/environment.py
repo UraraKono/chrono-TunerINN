@@ -136,6 +136,10 @@ class ChronoEnv:
             self.patch_scale = kwargs['patch_scale']
         except:
             self.patch_scale = 5
+        try:
+            self.constant_friction = kwargs['constant_friction']
+        except:
+            self.constant_friction = False
         # try:
         #     self.config = kwargs['config']
         # except:
@@ -159,10 +163,12 @@ class ChronoEnv:
 # nv = gym.make('f110_gym:f110-v0', map=conf.map_path, map_ext=conf.map_ext,
                             # num_agents=1, timestep=0.01, model='MB', drive_control_mode='acc',
                             # steering_control_mode='vel')
-
-        patch_waypoints = waypoints[::self.sample_rate_waypoints, :]
-        print("patch_waypoints", patch_waypoints.shape)
-        print("waypoints", waypoints.shape)
+        if not self.constant_friction:
+            patch_waypoints = waypoints[::self.sample_rate_waypoints, :]
+            print("patch_waypoints", patch_waypoints.shape)
+            print("waypoints", waypoints.shape)
+        else:
+            patch_waypoints = None
         veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
         init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)
@@ -171,37 +177,39 @@ class ChronoEnv:
         self.vehicle_params = VehicleParameters(self.my_hmmwv)
         
         self.control_step = self.control_period / self.step_size # control step for MPC in sim steps
-        curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.8) for waypoint in waypoints]
-        curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
 
-        path = curve
-        # print("path\n", path)
-        npoints = path.getNumPoints()
-        # print("npoints", npoints)
-        self.path_asset = chrono.ChLineShape()
-        self.path_asset.SetLineGeometry(chrono.ChLineBezier(path))
-        self.path_asset.SetName("test path")
-        self.path_asset.SetColor(chrono.ChColor(1, 0.0, 0.0))
-        self.path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        # print("self.viz_patch",self.viz_patch)
-        self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
-        # Why doesn't this path_asset show up in the visualization?
-        
-        mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(30)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
-        mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
-        npoints = mpc_curve.getNumPoints()
-        self.mpc_path_asset = chrono.ChLineShape()
-        self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
-        self.mpc_path_asset.SetName("MPC path")
-        self.mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
-        self.mpc_path_asset = chrono.ChLineShape()
-        self.mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
-        self.viz_patch.GetGroundBody().AddVisualShape(self.mpc_path_asset)
+        if not self.constant_friction:
+            curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.8) for waypoint in waypoints]
+            curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
 
-        # ballS = self.vis.GetSceneManager().addSphereSceneNode(0.1)
-        self.ballT = self.vis.GetSceneManager().addSphereSceneNode(0.1)
-        # ballS.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 255, 0, 0)
-        self.ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+            path = curve
+            # print("path\n", path)
+            npoints = path.getNumPoints()
+            # print("npoints", npoints)
+            self.path_asset = chrono.ChLineShape()
+            self.path_asset.SetLineGeometry(chrono.ChLineBezier(path))
+            self.path_asset.SetName("test path")
+            self.path_asset.SetColor(chrono.ChColor(1, 0.0, 0.0))
+            self.path_asset.SetNumRenderPoints(max(2 * npoints, 400))
+            # print("self.viz_patch",self.viz_patch)
+            self.viz_patch.GetGroundBody().AddVisualShape(self.path_asset)
+            # Why doesn't this path_asset show up in the visualization?
+            
+            mpc_curve_points = [chrono.ChVectorD(i/10 + 0.1, i/10 + 0.1, 0.6) for i in range(30)] #これはなにをやっているの？map情報からのwaypointガン無視してない？
+            mpc_curve = chrono.ChBezierCurve(mpc_curve_points, True) # True = closed curve
+            npoints = mpc_curve.getNumPoints()
+            self.mpc_path_asset = chrono.ChLineShape()
+            self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+            self.mpc_path_asset.SetName("MPC path")
+            self.mpc_path_asset.SetColor(chrono.ChColor(0.0, 0.0, 0.8))
+            self.mpc_path_asset = chrono.ChLineShape()
+            self.mpc_path_asset.SetNumRenderPoints(max(2 * npoints, 400))
+            self.viz_patch.GetGroundBody().AddVisualShape(self.mpc_path_asset)
+
+            # ballS = self.vis.GetSceneManager().addSphereSceneNode(0.1)
+            self.ballT = self.vis.GetSceneManager().addSphereSceneNode(0.1)
+            # ballS.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 255, 0, 0)
+            self.ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
 
         # Set up the longitudinal speed PID controller
         self.speedPID = LongitudinalSpeedPIDController(self.my_hmmwv)
@@ -259,25 +267,25 @@ class ChronoEnv:
             self.lap_flag = False
 
         #Advance the PID controller every simulation time step
-        # self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
-        # self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
+        self.speedPID_output = self.speedPID.Advance(target_speed, self.step_size)
+        self.steeringPID_output = self.steeringPID.Advance(target_steering, self.step_size)
 
-        # every control_step
-        if (self.step_number % (self.control_step) == 0) : 
-            self.speedPID_output = self.speedPID.Advance(target_speed, self.control_period)
-            self.steeringPID_output = self.steeringPID.Advance(target_steering, self.control_period)
-            # self.t_controlperiod.append(self.time)
+        #Advance the PID controller every control_step
+        # if (self.step_number % (self.control_step) == 0) : 
+        #     self.speedPID_output = self.speedPID.Advance(target_speed, self.control_period)
+        #     self.steeringPID_output = self.steeringPID.Advance(target_steering, self.control_period)
+        #     # self.t_controlperiod.append(self.time)
             
-            if self.mpc_ox is not None and not np.any(np.isnan(self.mpc_ox)):
-                # print("Update self.mpc_path_asset")
-                mpc_curve_points = [chrono.ChVectorD(self.mpc_ox[i], self.mpc_oy[i], 0.6) for i in range(len(self.mpc_ox))]
-                mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
-                self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
+        #     if self.mpc_ox is not None and not np.any(np.isnan(self.mpc_ox)):
+        #         # print("Update self.mpc_path_asset")
+        #         mpc_curve_points = [chrono.ChVectorD(self.mpc_ox[i], self.mpc_oy[i], 0.6) for i in range(len(self.mpc_ox))]
+        #         mpc_curve = chrono.ChBezierCurve(mpc_curve_points, False) # True = closed curve
+        #         self.mpc_path_asset.SetLineGeometry(chrono.ChLineBezier(mpc_curve))
 
-                pT = chrono.ChVectorD(self.mpc_ox[-1], self.mpc_oy[-1], 0.6)
-                self.ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
-            elif self.mpc_ox is not None and np.any(np.isnan(self.mpc_ox)):
-                print("No update self.mpc_path_asset")
+        #         pT = chrono.ChVectorD(self.mpc_ox[-1], self.mpc_oy[-1], 0.6)
+        #         self.ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+        #     elif self.mpc_ox is not None and np.any(np.isnan(self.mpc_ox)):
+        #         print("No update self.mpc_path_asset")
             # else:
             #     print("self.mpc_ox is None")
         

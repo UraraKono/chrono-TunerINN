@@ -28,79 +28,82 @@ def init_vehicle(self):
     self.my_hmmwv = my_hmmwv
 
 def init_terrain(self, friction, reduced_waypoints):
-    # Define the patch coordinates
-    patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in reduced_waypoints]
+    if self.constant_friction==False:
+        # Define the patch coordinates
+        patch_coords = [[waypoint[1], waypoint[2], 0.0] for waypoint in reduced_waypoints]
 
-    rest_values = [0.01] * len(patch_coords)
-    young_modulus_values = [2e7] * len(patch_coords)
-    patch_mats = [chrono.ChMaterialSurfaceSMC() for _ in range(len(patch_coords))]
-    for i, patch_mat in enumerate(patch_mats):
-        # print("i", i)
-        patch_mat.SetFriction(friction[i])
-        patch_mat.SetRestitution(rest_values[i])
-        patch_mat.SetYoungModulus(young_modulus_values[i])
+        rest_values = [0.01] * len(patch_coords)
+        young_modulus_values = [2e7] * len(patch_coords)
+        patch_mats = [chrono.ChMaterialSurfaceSMC() for _ in range(len(patch_coords))]
+        for i, patch_mat in enumerate(patch_mats):
+            # print("i", i)
+            patch_mat.SetFriction(friction[i])
+            patch_mat.SetRestitution(rest_values[i])
+            patch_mat.SetYoungModulus(young_modulus_values[i])
 
-    self.terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem())
+        self.terrain = veh.RigidTerrain(self.my_hmmwv.GetSystem())
 
-    # Base grass terrain
-    patch_coords_np = np.array(patch_coords)
-    min_x = min(patch_coords_np[:, 0])
-    max_x = max(patch_coords_np[:, 0])
-    min_y = min(patch_coords_np[:, 1])
-    max_y = max(patch_coords_np[:, 1])
-    # If the z position is 0, the visualization blinks so much
-    base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y)/2, -0.05)
-    terrainLength = max_x - min_x + 20  # size in X direction
-    terrainWidth  = max_y - min_y + 20 # size in Y direction
-    patch_mat_base = chrono.ChMaterialSurfaceSMC()
-    patch_mat_base.SetFriction(1.4)
-    patch_mat_base.SetRestitution(0.01)
-    patch_mat_base.SetYoungModulus(2e7)
-    base_coord = chrono.ChCoordsysD(base_pos,chrono.QUNIT)
-    patch_base = self.terrain.AddPatch(patch_mat_base, 
-                             base_coord, 
-                             terrainLength, terrainWidth)
-    patch_base.SetTexture(veh.GetDataFile("terrain/textures/grass.jpg"), 200, 200) #concrete, dirt, grass, tile4
+        # Base grass terrain
+        patch_coords_np = np.array(patch_coords)
+        min_x = min(patch_coords_np[:, 0])
+        max_x = max(patch_coords_np[:, 0])
+        min_y = min(patch_coords_np[:, 1])
+        max_y = max(patch_coords_np[:, 1])
+        # If the z position is 0, the visualization blinks so much
+        base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y), -0.05)
+        terrainLength = max_x - min_x + 40  # size in X direction
+        terrainWidth  = max_y - min_y + 40 # size in Y direction
+        patch_mat_base = chrono.ChMaterialSurfaceSMC()
+        patch_mat_base.SetFriction(1.4)
+        patch_mat_base.SetRestitution(0.01)
+        patch_mat_base.SetYoungModulus(2e7)
+        base_coord = chrono.ChCoordsysD(base_pos,chrono.QUNIT)
+        patch_base = self.terrain.AddPatch(patch_mat_base, 
+                                base_coord, 
+                                terrainLength, terrainWidth)
+        patch_base.SetTexture(veh.GetDataFile("terrain/textures/grass.jpg"), 200, 200) #concrete, dirt, grass, tile4
 
-    # Loop over the patch materials and coordinates to add each patch to the terrain
-    patches = []
-    for i, patch_mat in enumerate(patch_mats):
-        coords = patch_coords[i]
-        psi = reduced_waypoints[i, 3]
-        if i == len(patch_mats) - 1:
-            s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
-            distance = np.sqrt((reduced_waypoints[i, 1] - reduced_waypoints[i-1, 1])**2 + (reduced_waypoints[i, 2] - reduced_waypoints[i-1, 2])**2)
-        else:    
-            s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
-            # l2 norm distance between (reduced_waypoints[i+1, 1], reduced_waypoints[i+1, 2]) and (reduced_waypoints[i, 1], reduced_waypoints[i, 2])
-            distance = np.sqrt((reduced_waypoints[i+1, 1] - reduced_waypoints[i, 1])**2 + (reduced_waypoints[i+1, 2] - reduced_waypoints[i, 2])**2)
+        # Loop over the patch materials and coordinates to add each patch to the terrain
+        patches = []
+        for i, patch_mat in enumerate(patch_mats):
+            coords = patch_coords[i]
+            psi = reduced_waypoints[i, 3]
+            if i == len(patch_mats) - 1:
+                s = reduced_waypoints[i, 0] - reduced_waypoints[i-1,0]
+                distance = np.sqrt((reduced_waypoints[i, 1] - reduced_waypoints[i-1, 1])**2 + (reduced_waypoints[i, 2] - reduced_waypoints[i-1, 2])**2)
+            else:    
+                s = reduced_waypoints[i+1, 0] - reduced_waypoints[i,0]
+                # l2 norm distance between (reduced_waypoints[i+1, 1], reduced_waypoints[i+1, 2]) and (reduced_waypoints[i, 1], reduced_waypoints[i, 2])
+                distance = np.sqrt((reduced_waypoints[i+1, 1] - reduced_waypoints[i, 1])**2 + (reduced_waypoints[i+1, 2] - reduced_waypoints[i, 2])**2)
 
-        # print("s", s)
-        r = chrono.ChQuaternionD()
-        r.Q_from_AngZ(psi)
-        # print('r',r)
-        # patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.patch_scale, 20)
-        patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), distance*self.patch_scale, 20)
-        patches.append(patch)
+            # print("s", s)
+            r = chrono.ChQuaternionD()
+            r.Q_from_AngZ(psi)
+            # print('r',r)
+            # patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.patch_scale, 20)
+            patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), distance*self.patch_scale, 20)
+            patches.append(patch)
 
-    # self.viz_patch = self.terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
-    self.viz_patch = patch_base
-    
-    # Set color of patch based on friction value
-    min_friction = min(friction)
-    max_friction = max(friction)
-    for i, patch in enumerate(patches):
-        # print(friction[i])
-        if max_friction == min_friction:
-            RGB_value = 1 - friction[i]/1.5
-            if RGB_value < 0:
-                RGB_value = 0
-        else:
-            RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
-            # RGB_value = 1
-        patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
+        # self.viz_patch = self.terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
+        self.viz_patch = patch_base
+        
+        # Set color of patch based on friction value
+        min_friction = min(friction)
+        max_friction = max(friction)
+        for i, patch in enumerate(patches):
+            # print(friction[i])
+            if max_friction == min_friction:
+                RGB_value = 1 - friction[i]/1.5
+                if RGB_value < 0:
+                    RGB_value = 0
+            else:
+                RGB_value = 1 - (friction[i] - min_friction) / (max_friction - min_friction)
+                # RGB_value = 1
+            patch.SetColor(chrono.ChColor(RGB_value, RGB_value, RGB_value))
 
-    self.terrain.Initialize()
+        self.terrain.Initialize()
+    else:
+        self.terrain = veh.FlatTerrain(0, self.constant_friction) # height = 0, friction = self.constant_friction
 
 def init_irrlicht_vis(ego_vehicle):
     # Create the vehicle Irrlicht interface

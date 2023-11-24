@@ -51,7 +51,7 @@ from utilities import load_map, friction_func, centerline_to_frenet
 step_size = 2e-3
 throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 # Program parameters
-model_in_first_lap = 'pure_pursuit'  # options: ext_kinematic, pure_pursuit
+model_in_first_lap = 'ext_kinematic'  # options: ext_kinematic, pure_pursuit
 # currently only "custom_track" works for frenet
 map_name = 'custom_track'  # Nuerburgring, SaoPaulo, rounded_rectangle, l_shape, BrandsHatch, DualLaneChange, custom_track
 map_ind = 8 ####You also need to select the corresponding ind if not custom_track!!!!
@@ -61,7 +61,7 @@ gp_mpc_type = 'cartesian'  # cartesian, frenet
 constant_speed = True
 constant_speed_ref = 4.0
 constant_friction = 1.0
-num_laps_learn = 1
+num_laps_learn = 2
 num_laps = num_laps_learn + 1
 SAVE_MODEL = True
 SAVE_DIR = './data/'
@@ -81,7 +81,7 @@ with open('EGP/configs/config_%s.yaml' % 'SaoPaulo') as file:  # map_name -- Sao
     conf_dict = yaml.load(file, Loader=yaml.FullLoader)
 conf = Namespace(**conf_dict)
 conf.wpt_path="./EGP"+conf.wpt_path
-print("conf.wpt_path",conf.wpt_path)
+# print("conf.wpt_path",conf.wpt_path)
 
 if not map_name == 'custom_track':
     map_info = np.genfromtxt('map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
@@ -172,21 +172,25 @@ if model_in_first_lap == "pure_pursuit":
     plt.plot(planner_pp.waypoints[:,1], planner_pp.waypoints[:,2], label="waypoints")
     plt.show()
 
+dlk = np.sqrt((waypoints[1, 1] - waypoints[0, 1]) ** 2 + (waypoints[1, 2] - waypoints[0, 2]) ** 2)
 if gp_mpc_type == 'frenet':
     planner_gp_mpc_frenet_config = MPCConfigGPFrenet()
+    planner_gp_mpc_frenet_config.dlk = dlk
     reset_config(planner_gp_mpc_frenet_config, env.vehicle_params)
     planner_gp_mpc_frenet = STMPCPlanner(model=GPEnsembleModelFrenet(config=planner_gp_mpc_frenet_config, track=track),
-                                          waypoints=waypoints.copy(),
+                                        waypoints=waypoints.copy(),
                                         config=planner_gp_mpc_frenet_config, track=track)
     planner_gp_mpc_frenet.trajectry_interpolation = 1
 
 elif gp_mpc_type == 'cartesian':
     planner_gp_mpc_config = MPCConfigGP()
+    planner_gp_mpc_config.dlk = dlk
     reset_config(planner_gp_mpc_config, env.vehicle_params)
     planner_gp_mpc = STMPCPlanner(model=GPEnsembleModel(config=planner_gp_mpc_config),
                                   waypoints=waypoints.copy(),config=planner_gp_mpc_config)
 
 planner_ekin_mpc_config = MPCConfigEXT()
+planner_ekin_mpc_config.dlk = dlk
 reset_config(planner_ekin_mpc_config, env.vehicle_params)
 planner_ekin_mpc = STMPCPlanner(model=ExtendedKinematicModel(config=planner_ekin_mpc_config), 
                                 waypoints=waypoints.copy(),

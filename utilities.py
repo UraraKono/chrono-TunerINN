@@ -48,7 +48,8 @@ def friction_func(i, s_max):
     if s < 0.5 * s_max:
         return 1.1 - 0.6 * s / s_max
     else:
-        return 0.5 - 0.3 * s / s_max
+        # return 0.5 - 0.3 * s / s_max
+        return 0.7 - 0.3 * s / s_max
     
 ############################ frenet_utils.py ##################################
 
