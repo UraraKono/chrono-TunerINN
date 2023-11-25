@@ -6,7 +6,6 @@ __pycache__/
 *.so
 *.pth
 *.png
-*.npy
 
 # Distribution / packaging
 bin/

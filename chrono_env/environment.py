@@ -140,6 +140,10 @@ class ChronoEnv:
             self.constant_friction = kwargs['constant_friction']
         except:
             self.constant_friction = False
+        try:
+            self.visualize = kwargs['visualize']
+        except:
+            self.visualize = True
         # try:
         #     self.config = kwargs['config']
         # except:
@@ -173,12 +177,13 @@ class ChronoEnv:
         init_vehicle(self)
         self.my_hmmwv.state = get_vehicle_state(self)
         init_terrain(self, friction, patch_waypoints)
-        self.vis = init_irrlicht_vis(self.my_hmmwv)
+        if self.visualize:
+            self.vis = init_irrlicht_vis(self.my_hmmwv)
         self.vehicle_params = VehicleParameters(self.my_hmmwv)
         
         self.control_step = self.control_period / self.step_size # control step for MPC in sim steps
 
-        if not self.constant_friction:
+        if (self.constant_friction == False) and (self.visualize == True):
             curve_points = [chrono.ChVectorD(waypoint[1], waypoint[2], 0.8) for waypoint in waypoints]
             curve = chrono.ChBezierCurve(curve_points, True) # True = closed curve
 
@@ -244,7 +249,8 @@ class ChronoEnv:
         # Update modules (process inputs from other modules)
         self.terrain.Synchronize(self.time)
         self.my_hmmwv.Synchronize(self.time, self.driver_inputs, self.terrain)
-        self.vis.Synchronize("", self.driver_inputs)
+        if self.visualize:
+            self.vis.Synchronize("", self.driver_inputs)
         
         self.my_hmmwv.state = get_vehicle_state(self)
         # print("self.my_hmmwv.state[-1]", self.my_hmmwv.state[-1])
@@ -293,7 +299,8 @@ class ChronoEnv:
         # These three lines should be outside of the if statement for MPC!!!
         self.terrain.Advance(self.step_size) 
         self.my_hmmwv.Advance(self.step_size)
-        self.vis.Advance(self.step_size)
+        if self.visualize:
+            self.vis.Advance(self.step_size)
 
         # Increment frame number
         self.step_number += 1

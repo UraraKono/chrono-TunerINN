@@ -28,12 +28,12 @@ from chrono_env.environment import ChronoEnv
 from chrono_env.utils import *
 from utilities import load_map, friction_func, centerline_to_frenet, cartesian_to_frenet, frenet_to_cartesian
 
-SEGMENT_LENGTH = 10
-RENDER = True
+SEGMENT_LENGTH = 20
+RENDER = False # True, False
 SAVE_DIR = '/home/lucerna/Documents/DATA/tuner_inn/track39/'
 MAP_DIR = './f1tenth_racetracks/'
 ACC_VS_CONTROL = False
-VEL_SAMPLE_UP = 0.3
+VEL_SAMPLE_UP = 1.0
 SAVE_STEP = 210
 
 # --------------
@@ -42,41 +42,26 @@ throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
 SAVE_MODEL = True
 MAP_DIR = './f1tenth-racetrack/'
 SAVE_DIR = './data/'
-t_end = 2000
+# t_end = 2000
 map_ind = 17 # 39 Zandvoort_raceline
-map_scale = 10
+# map_scale = 10
 map_reverse = False
 patch_scale = 1.5 # map_ind 16: 1.5
 # ref_vx = 8.0
 control_model = "pure_pursuit" # options: ext_kinematic, pure_pursuit
-num_laps = 1  # Number of laps
+num_laps = 2  # Number of laps
 # --------------
 
 
-if len(sys.argv) > 1:
-    start_vel = float(sys.argv[1])
-    # vels = [vel]
-    vels = np.arange(start_vel, start_vel + 0.3, 0.1)
-else:
-    print('Please provide a starting velocity. start_vel = 8.0 automatically used.')
-    start_vel = 8.0
-    vels = np.arange(start_vel, start_vel + 0.3, 0.1)
+# if len(sys.argv) > 1:
+#     start_vel = float(sys.argv[1])
+#     # vels = [vel]
+#     vels = np.arange(start_vel, start_vel + 6, 1.0)
+# else:
+#     print('Please provide a starting velocity. start_vel = 8.0 automatically used.')
+#     start_vel = 8.0
+#     vels = np.arange(start_vel, start_vel + 6, 1.0)
 
-# friction_func changes the friction just in s direction
-# def friction_func(pose_frenet, waypoints):
-#     s_max = np.max(waypoints[:, 0]) # Handles the case when waypoints is flipped
-#     s = pose_frenet[0]
-#     ey = pose_frenet[1]
-#     ey_max = 10 # Maximum lateral error - Track width
-#     if abs(ey) > ey_max:
-#         return np.nan
-#     if s < 0.5 * s_max:
-#         # Linear change from 1.1 abs(ey) = 0 to 0.5 abs(ey) >= ey_max
-#         ey = min(abs(ey), ey_max)
-#         return 1.1 - 0.6 * ey / ey_max
-#     else:
-#         ey = min(abs(ey), ey_max)
-#         return 0.5 - 0.3 * ey / ey_max
 
 def test_friction_func(map_ind):
     with open('maps/config_example_map.yaml') as file:
@@ -113,7 +98,10 @@ def main():
     """
     main entry point
     """
-    map_ind = 39
+    map_ind = 16
+    SAVE_DIR = './data/track/' + str(map_ind) + '/'
+    if not os.path.exists(SAVE_DIR):
+        os.makedirs(SAVE_DIR)
 
     # # Visualize friction function
     # test_friction_func(map_ind)
@@ -123,8 +111,9 @@ def main():
     conf = Namespace(**conf_dict)
     
     # friction_funcs = [friction_func]
-    # vels = np.arange(8, 9, 1)
-    vels = np.arange(15, 16, 1)
+    # vels = np.arange(8, 15, 1)
+    # vels = np.arange(12, 13, 1)
+    vels = [15]
 
     if control_model == "ext_kinematic":
         Kp = 5
@@ -138,14 +127,16 @@ def main():
     # for map_ind in range(7, 40):
     
     # for friction_func_ in friction_funcs:
-    total_states = []
-    total_controls = []
+
     for vel in vels:
+        total_states = []
+        total_controls = []
         for reverse in range(2):
+            print('vel', vel, 'reverse', reverse, 'map_ind', map_ind)
             step_reward = 0
             map_info = np.genfromtxt('map_info.txt', delimiter='|', dtype='str')[map_ind][1:]
             print(map_ind, map_info[0], 'reverse', reverse)
-            waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=map_scale, reverse=reverse)
+            waypoints, conf, init_theta = load_map(MAP_DIR, map_info, conf, scale=6, reverse=reverse)
             
             # waypoints_frenet = waypoints.copy()
             # Check if the waypoints are of the form [x_m, y_m, w_tr_right_m, w_tr_left_m]
@@ -166,9 +157,6 @@ def main():
                     w0 = waypoints[0,3]-np.pi
             
             waypoints[:, -2] = vel
-                
-            print('vel', vel)
-            # print('friction', friction_func_.__name__)
 
             # sample every env.reduced_rate 10 waypoints for patch in visualization
             reduced_waypoints = waypoints[::reduced_rate, :] 
@@ -182,10 +170,10 @@ def main():
             if ACC_VS_CONTROL:
                 warnings.warn('ACC_VS_CONTROL is not supported')
             else:
-                env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints, patch_scale=patch_scale,
+                env = ChronoEnv().make(timestep=step_size, control_period=0.1, waypoints=waypoints.copy(), patch_scale=patch_scale,
                                         sample_rate_waypoints=reduced_rate, friction=friction, speedPID_Gain=[Kp, Ki, Kd],
                                         steeringPID_Gain=[0.5,0,0], x0=reduced_waypoints[0,1], 
-                                        y0=reduced_waypoints[0,2], w0=w0)
+                                        y0=reduced_waypoints[0,2], w0=w0, visualize=RENDER)
                 
                 obs = {'poses_x': env.my_hmmwv.state[0],'poses_y': env.my_hmmwv.state[1],
                 'vx':env.my_hmmwv.state[2], 'poses_theta': env.my_hmmwv.state[3],
@@ -215,15 +203,11 @@ def main():
                 planner_pp = PurePursuitPlanner(conf, env.vehicle_params.WB)
                 planner_pp.waypoints = waypoints.copy()
 
-                ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
-                ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
+                if env.visualize:
+                    ballT = env.vis.GetSceneManager().addSphereSceneNode(0.1)
+                    ballT.getMaterial(0).EmissiveColor = chronoirr.SColor(0, 0, 255, 0)
 
             if RENDER: env.render()
-
-            # # init vector = [x,y,yaw,steering angle, velocity, yaw_rate, beta]
-            # obs, step_reward, done, info = env.reset(np.array([[waypoints[0, conf.wpt_xind], 
-            #                                                     waypoints[0, conf.wpt_yind], 
-            #                                                     init_theta, 0.0, 0.0, 0.0, 0.0]]))
 
             laptime = 0.0
             start = time.time()            
@@ -232,7 +216,7 @@ def main():
             cnt = 0
             while env.lap_counter < num_laps:
                 if cnt % 42 == 0:
-                    target_vel = vel + np.random.uniform(-VEL_SAMPLE_UP, VEL_SAMPLE_UP)
+                    target_vel = vel + np.random.uniform(-VEL_SAMPLE_UP/2, VEL_SAMPLE_UP/2)
                 
                 if control_model == "ext_kinematic":
                     warnings.warn('ext_kinematic is not supported')
@@ -245,41 +229,22 @@ def main():
                     u = np.array([speed, steering])
                     # Visualize the lookahead point of pure-pursuit
                     if planner_pp.lookahead_point is not None:
-                        pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1], 0.0)
-                        ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
+                        if env.visualize:
+                            pT = chrono.ChVectorD(planner_pp.lookahead_point[0], planner_pp.lookahead_point[1], 0.0)
+                            ballT.setPosition(chronoirr.vector3df(pT.x, pT.y, pT.z))
                     else:
-                        print("No lookahead point found in main_map_info.py!!!")
-                # speed, steer, ind = planner.plan(obs['poses_x'][0], obs['poses_y'][0], obs['poses_theta'][0], work['tlad'],
-                #                             work['vgain'], target_vel)
-                
-                # pose_frenet = cartesian_to_frenet(np.array([obs['poses_x'][0], obs['poses_y'][0], obs['poses_theta'][0]]), waypoints_frenet)
-                # env.params['tire_p_dy1'] = friction_func_(pose_frenet, waypoints_frenet)  # mu_y  # mu_y
-                # env.params['tire_p_dx1'] = friction_func_(pose_frenet, waypoints_frenet)  # mu_y  # mu_x
-                
-                if ACC_VS_CONTROL:
-                    # steering angle velocity input to steering velocity acceleration input
-                    # accl, sv = pid(target_vel, steer, obs['x4'][0], obs['x3'][0], param1['sv_max'], param1['a_max'],
-                    #             param1['v_max'], param1['v_min'])
-                    # control = np.array([sv, accl])
-                    warnings.warn('ACC_VS_CONTROL is not supported')
-                else:
-                    control = np.array([steering, speed])
-                
-                    
+                        warnings.warn("No lookahead point found with vx = {:.2f} m/s, (x,y)= ({:.2f},{:.2f}), lap={} ".format(obs['vx'], obs['poses_x'], obs['poses_y'], env.lap_counter))
+                        break
+  
                 for i in range(SEGMENT_LENGTH):
                     obs, rew, done, info = env.step(steering, speed)
                     step_reward += rew
 
-                # state = np.array([obs['x3'][0], obs['x4'][0], obs['x6'][0], obs['x11'][0]])
-                # ## x3 = steering angle of front wheels
-                # ## x4 = velocity in x-direction
-                # ## x6 = yaw rate
-                # ## x11 = velocity in y-direction
-                state = np.array([obs['steering'], obs['vx'], obs['yaw_rate'], obs['vy']])
+                # state = np.array([obs['steering'], obs['vx'], obs['yaw_rate'], obs['vy']])
                 control = np.array([steering, env.speedPID_output])
                 
                 cnt += 1
-                states.append(state)
+                states.append(env.my_hmmwv.state)
                 controls.append(control)
                 
                 if cnt % SAVE_STEP == 0:
@@ -290,10 +255,6 @@ def main():
 
                 laptime += step_reward
                 if RENDER: 
-                    # env.render(mode='human_fast')
-                    # print('target_vel', target_vel, np.sqrt(obs['x4'][0] ** 2 + obs['x11'][0] ** 2))
-                    # print(ind, f'x {obs["x1"][0]:.2f}, y {obs["x2"][0]:.2f}, yaw {obs["x5"][0]:.2f}, yawrate {obs["x6"][0]:.2f}' + \
-                    #     f', vx {obs["x4"][0]:.2f}, vy {obs["x11"][0]:.2f}, steer {obs["x3"][0]:.2f}')
                     env.render()
                     # print('steering', steering, 'target_vel', target_vel, 'speed', speed, 'speedPID_output(acc)', env.speedPID_output)
             
@@ -303,8 +264,8 @@ def main():
                     break
 
             print('Sim elapsed time:', laptime, 'Real elapsed time:', time.time() - start)
-    np.save(SAVE_DIR + 'states_f{}_v{}.npy'.format("friction_func", int(np.rint(vels[0]*100))), total_states)
-    np.save(SAVE_DIR + 'controls_f{}_v{}.npy'.format("friction_func", int(np.rint(vels[0]*100))), total_controls)
+        np.save(SAVE_DIR + 'states_f{}_v{}.npy'.format("friction_func", int(np.rint(vel*100))), total_states)
+        np.save(SAVE_DIR + 'controls_f{}_v{}.npy'.format("friction_func", int(np.rint(vel*100))), total_controls)
 
 if __name__ == '__main__':
     main()

@@ -50,7 +50,7 @@ def init_terrain(self, friction, reduced_waypoints):
         min_y = min(patch_coords_np[:, 1])
         max_y = max(patch_coords_np[:, 1])
         # If the z position is 0, the visualization blinks so much
-        base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y), -0.05)
+        base_pos = chrono.ChVectorD((min_x+max_x)/2, (min_y+max_y)/2, -0.05)
         terrainLength = max_x - min_x + 40  # size in X direction
         terrainWidth  = max_y - min_y + 40 # size in Y direction
         patch_mat_base = chrono.ChMaterialSurfaceSMC()
