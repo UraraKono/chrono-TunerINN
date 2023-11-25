@@ -98,7 +98,7 @@ def main():
     """
     main entry point
     """
-    map_ind = 16
+    map_ind = 8
     SAVE_DIR = './data/track/' + str(map_ind) + '/'
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
@@ -113,7 +113,7 @@ def main():
     # friction_funcs = [friction_func]
     # vels = np.arange(8, 15, 1)
     # vels = np.arange(12, 13, 1)
-    vels = [15]
+    vels = [14, 15]
 
     if control_model == "ext_kinematic":
         Kp = 5
