@@ -29,7 +29,7 @@ from chrono_env.utils import *
 from utilities import load_map, friction_func, centerline_to_frenet, cartesian_to_frenet, frenet_to_cartesian
 
 SEGMENT_LENGTH = 20
-RENDER = False # True, False
+RENDER = True # True, False
 SAVE_DIR = '/home/lucerna/Documents/DATA/tuner_inn/track39/'
 MAP_DIR = './f1tenth_racetracks/'
 ACC_VS_CONTROL = False
@@ -98,7 +98,7 @@ def main():
     """
     main entry point
     """
-    map_ind = 8
+    map_ind = 11
     SAVE_DIR = './data/track/' + str(map_ind) + '/'
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
@@ -111,9 +111,9 @@ def main():
     conf = Namespace(**conf_dict)
     
     # friction_funcs = [friction_func]
-    # vels = np.arange(8, 15, 1)
+    vels = np.arange(8, 16, 1)
     # vels = np.arange(12, 13, 1)
-    vels = [14, 15]
+    # vels = [15]
 
     if control_model == "ext_kinematic":
         Kp = 5
