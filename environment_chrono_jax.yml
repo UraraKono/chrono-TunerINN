@@ -1,7 +1,7 @@
 name: chrono_jax2
 channels:
   - pytorch
-  - <unknown>
+  # - <unknown>
   - nvidia
   - conda-forge
   - defaults

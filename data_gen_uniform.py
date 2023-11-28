@@ -54,7 +54,6 @@ ACC_VS_CONTROL = False
 # step_size = 2e-3 #simulation step size
 step_size = INTEGRATION_DT
 throttle_value = 0.3 # This shouldn't be set zero; otherwise it doesn't start
-SAVE_MODEL = True
 MAP_DIR = './f1tenth-racetrack/'
 SAVE_DIR = './data/'+ EXP_NAME + '/'
 t_end = 2000
@@ -241,8 +240,8 @@ def main():
                         # print(step_count, 'reset', 'vel', vel, 'x4', obs['x4'][0], 'x11', obs['x11'][0])
                         if len(states) > 0:
                             # print(np.vstack(states).shape)
-                            total_controls.append(np.vstack(controls))
-                            total_states.append(np.vstack(states))
+                            total_controls.append(np.vstack(controls)) # appending (210,2) to total_controls
+                            total_states.append(np.vstack(states)) # appending (210,7) to total_states
                             controls = []
                             states = []
                             

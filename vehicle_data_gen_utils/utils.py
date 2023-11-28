@@ -4,8 +4,66 @@ import yaml
 import os
 
 
-BN_MOMENTUM = 0.1
+BN_MOMENTUM = 0.1    
 
+def npprint_suppress():
+    np.set_printoptions(suppress=True, precision=10)
+    
+class pltUtils:
+    def __init__(self) -> None:
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+        self.plt = plt
+        self.GridSpec = GridSpec
+        
+    def get_fig(self, grid=[1, 1], figsize=None, dpi=150):
+        fig = self.plt.figure(figsize=figsize, dpi=dpi)
+        self.gs = self.GridSpec(grid[0], grid[1])
+        axs = []
+        for ind in range(np.prod(grid)):
+            axs.append(fig.add_subplot(self.gs[ind]))
+        return axs
+    
+    def show(self):
+        self.plt.show()
+    
+class Timer:
+    def __init__(self) -> None:
+        self.times = {}
+        import time
+        self.time = time
+        
+    def tic(self, time_name=None):
+        if time_name is None:
+            time_name = str(len(list(self.times.keys())))
+        self.times[time_name] = self.time.time()
+            
+    def toc(self, name='', time_name=None, Hz=True, ret=False, show=True):
+        if time_name is None:
+            time_name = str(len(list(self.times.keys())) - 1)
+        if Hz and show: print(name, 1/(self.time.time() - self.times[time_name]), 'Hz')
+        elif show: print(name, self.time.time() - self.times[time_name], 's')
+        if ret: return self.time.time() - self.times[time_name]
+
+
+class colorPalette:
+    def __init__(self, colorset="Set1") -> None:
+        import seaborn as sns
+        self.sns = sns
+        self.colorset = colorset
+        self.colors = self.sns.color_palette(self.colorset)
+        
+    def hex2rgb(self, hex):
+        return [int(hex.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)]
+        
+    def rgb(self, color_ind):
+        if isinstance(color_ind, str):
+            if self.colorset == "Set1":
+                color_ind = ['r', 'b', 'g', 'p', 'o', 'y', 'br', 'pi'].index(color_ind)
+        return self.hex2rgb(self.colors.as_hex()[color_ind])
+    
+    
+    
 class Logger:
     def __init__(self, save_dir, experiment_name):
         import datetime
@@ -142,7 +200,6 @@ class DataProcessor():
     
     def de_normalize(self, data, params):
         return data * params[0] + params[1]
-    
 
 class DrivableCritic():
     def __init__(self, yaml_dir, yaml_filename):

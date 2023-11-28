@@ -46,7 +46,7 @@ pip install cvxpy
 
 5. Download this version of pychrono: https://anaconda.org/projectchrono/pychrono/8.0.0/download/linux-64/pychrono-8.0.0-py39_1.tar.bz2
 
-5. *After you installed all the necessary packages, finally* install Pychrono.
+6. *After you installed all the necessary packages, finally* install Pychrono.
 '''bash
 conda install pychrono-8.0.0-py39_1.tar.bz2
 '''
