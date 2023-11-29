@@ -6,7 +6,6 @@ import jax.numpy as jnp
 from flax.training import orbax_utils
 import orbax
 from functools import partial
-import warnings
 
 def load_state(state, info, path=""):
     print(path)
@@ -95,7 +94,8 @@ class PositionalEncoding_jax():
         list_data = list_data.reshape(list_data.shape[0], dim, 2)
         atan2_value = jnp.arctan2(list_data[:, :, 0], list_data[:, :, 1]) / (np.pi)
         # sub_zero_inds = jnp.where(atan2_value < 0)
-        # atan2_value[sub_zero_inds] = atan2_value[sub_zero_inds] + 1
+        atan2_value = jnp.where(atan2_value < 0, atan2_value + 1, atan2_value)
+        # atan2_value = atan2_value.at[sub_zero_inds].set(atan2_value[sub_zero_inds] + 1)
         return atan2_value
 
 

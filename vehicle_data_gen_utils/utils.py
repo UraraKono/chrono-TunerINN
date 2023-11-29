@@ -18,6 +18,7 @@ class pltUtils:
         
     def get_fig(self, grid=[1, 1], figsize=None, dpi=150):
         fig = self.plt.figure(figsize=figsize, dpi=dpi)
+        self.fig = fig
         self.gs = self.GridSpec(grid[0], grid[1])
         axs = []
         for ind in range(np.prod(grid)):

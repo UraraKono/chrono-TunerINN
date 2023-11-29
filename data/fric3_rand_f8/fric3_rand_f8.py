@@ -54,37 +54,37 @@ def main():
     logger = Logger(config.savedir, EXP_NAME)
     logger.write_file(__file__)
 
-    data = np.load(config.datadir + 'train_data_f5.npz')
+    data = np.load(config.datadir + 'train_data_f5.npz') 
     
     train_states = np.asarray(data['train_states'])[0, :, 0, :]
     arr = np.arange(train_states.shape[0])
     np.random.shuffle(arr)
     arr_train = arr[:int(np.rint(arr.shape[0] * 0.95))]
     arr_test = arr[int(np.rint(arr.shape[0] * 0.95)):]
-    train_states = np.asarray(data['train_states'])[0, arr_train, 0, :]
-    train_controls = np.asarray(data['train_controls'])[0, arr_train, 1, :]
+    train_states = np.asarray(data['train_states'])[0, arr_train, 0, :] #なぜ０？
+    train_controls = np.asarray(data['train_controls'])[0, arr_train, 1, :] # np.asarray(data['train_controls'])は(1,66560,2,2)　なぜ１？
     train_dynamics = np.asarray(data['train_dynamics'])[0, arr_train, 0, :]
-    print('train_states', train_states.shape)
+    print('train_states', train_states.shape) # (63232, 4)
 
     # data = np.load(config.test_datadir + 'train_data.npz')
     test_states = np.asarray(data['train_states'])[0, arr_test, 0, :]
     test_controls = np.asarray(data['train_controls'])[0, arr_test, 1, :]
     test_dynamics = np.asarray(data['train_dynamics'])[0, arr_test, 0, :]
-    print('test_states', test_states.shape)
+    print('test_states', test_states.shape) # (3328, 4)
 
     pe = jax_utils.PositionalEncoding_jax(config.pe_level)
     pe1 = jax_utils.PositionalEncoding_jax(1)
 
-    data = jnp.concatenate([train_states, train_controls, train_dynamics], axis=1)
+    data = jnp.concatenate([train_states, train_controls, train_dynamics], axis=1) # (63232, 4+2+3=9)
     context = pe.batch_encode(data[:, :6])
     dyna = pe1.batch_encode(data[:, 6:9])
-    test_data = jnp.concatenate([test_states, test_controls, test_dynamics], axis=1)
+    test_data = jnp.concatenate([test_states, test_controls, test_dynamics], axis=1) # (3328, 4+2+3=9)
     test_context = pe.batch_encode(test_data[:, :6])
     test_dyna = pe1.batch_encode(test_data[:, 6:9])
-    print(test_context.shape)
-    print(test_dyna.shape)
-    print(context.shape)
-    print(dyna.shape)
+    print(test_context.shape) # (3328, 36)
+    print(test_dyna.shape) # (3328, 6)
+    print(context.shape) # (63232, 36)
+    print(dyna.shape) # (63232, 6)
 
     dp = DataProcessor()
     c = ConfigJSON()
@@ -161,7 +161,7 @@ def main():
         
         params = flax_train_state.params
         
-        if epoch % config.test_period == 0:
+        if epoch % config.test_period == 0 and epoch > 0:
             flax_train_state, epoch_info = trainer.load_state(flax_train_state, epoch_info, save_name='last')
             params = flax_train_state.params
             cnt = 0

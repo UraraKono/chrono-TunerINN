@@ -73,20 +73,20 @@ for ind in range(4):
 
 dynamics = []
 for ind, friction_ in enumerate(flist):
-    states_fric = all_friction_states[ind] # (320=# of segment,210=length of segment,7=# of states)
+    states_fric = all_friction_states[ind] # (320=# of segment,210=length of segment,4=# of states)
     # controls_fric = all_friction_control[ind]
-    for segment_ind in range(states_fric.shape[0]):
-        states = states_fric[segment_ind] # (210,7)
+    for segment_ind in range(states_fric.shape[0]): # segment_ind:0~319
+        states = states_fric[segment_ind] # (210,4)
         # controls = controls_fric[segment_ind]
-        states = np.vstack([states[i:i+2][None, :] for i in range(0, len(states)-2+1, 2)]) # (105,2,7)
-        dynamics.append((states[:, 1, 1:] - states[:, 0, 1:]) / TIME_INTERVAL)
+        states = np.vstack([states[i:i+2][None, :] for i in range(0, len(states)-2+1, 1)]) # (105(rangeを2個飛ばしでやったら)/209(range1個飛ばし),2,4)
+        dynamics.append((states[:, 1, 1:] - states[:, 0, 1:]) / TIME_INTERVAL) # vx, yaw rate, vy. steering angleは除いた
         
-dynamics = np.vstack(dynamics)
-for ind in range(3):
+dynamics = np.vstack(dynamics) # (320*209, 3)
+for ind in range(3): #dynamicsはvx, yaw rate, vyの三列
     _, param = dp.data_normalize(dynamics[:, ind])
     normalization_param.append(param)
     
-for ind in range(2):
+for ind in range(2): #controlは二列
     _, param = dp.data_normalize(np.vstack(np.vstack(all_friction_control))[:, ind])
     normalization_param.append(param)
 print(normalization_param)
@@ -104,22 +104,27 @@ train_controls_fric = []
 train_dynamics_fric = []
 train_labels_fric = []
 # normalization_param[0] = [2, -1]
+
+# How's this for loop different from the for loop in l.75?
+
 for ind, friction_ in enumerate(flist):
-    states_fric = all_friction_states[ind]
-    controls_fric = all_friction_control[ind]
+    states_fric = all_friction_states[ind] # (320=# of segment,210=length of segment,4=# of states)
+    controls_fric = all_friction_control[ind] # (320,210,2)
     
     train_states = []
     train_controls = []
     train_dynamics = []
     train_labels = []
     
-    for segment_ind in range(states_fric.shape[0]):
+    for segment_ind in range(states_fric.shape[0]): # segment_ind:0~319
     # for segment_ind in range(1):
-        states = states_fric[segment_ind]
-        controls = controls_fric[segment_ind]
+        states = states_fric[segment_ind] # (210,4)
+        controls = controls_fric[segment_ind] # (210,2)
         
-        states = np.vstack([states[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(states)-TRAIN_SEGMENT+1, TRAIN_SEGMENT)])
-        controls = np.vstack([controls[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(controls)-TRAIN_SEGMENT+1, TRAIN_SEGMENT)])
+        # states = np.vstack([states[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(states)-TRAIN_SEGMENT+1, TRAIN_SEGMENT)]) # (104,2,4)
+        # controls = np.vstack([controls[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(controls)-TRAIN_SEGMENT+1, TRAIN_SEGMENT)]) # (104,2,2)
+        states = np.vstack([states[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(states)-TRAIN_SEGMENT+1, 1)]) # (104,2,4)
+        controls = np.vstack([controls[i:i+TRAIN_SEGMENT][None, :] for i in range(1, len(controls)-TRAIN_SEGMENT+1, 1)]) # (104,2,2)
         dynamics = (states[:, 1:, 1:] - states[:, :-1, 1:]) / TIME_INTERVAL
         label = [ind] * dynamics.shape[0]
         
@@ -129,7 +134,7 @@ for ind, friction_ in enumerate(flist):
         train_labels.append(label)
             
     train_states_fric.append(np.vstack(train_states))
-    train_controls_fric.append(np.vstack(train_controls))
+    train_controls_fric.append(np.vstack(train_controls)) # (320*104,2,4)をappend
     train_dynamics_fric.append(np.vstack(train_dynamics))
     train_labels_fric.append(np.hstack(train_labels))
     
