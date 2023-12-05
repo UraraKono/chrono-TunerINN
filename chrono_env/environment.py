@@ -95,7 +95,7 @@ class ChronoEnv:
             # This shouldn't be set zero; otherwise it doesn't start
             self.driver_inputs.m_throttle = kwargs['throttle_value']
         except:
-            self.driver_inputs.m_throttle = 0.3
+            self.driver_inputs.m_throttle = 0
         try:
             self.control_period = kwargs['control_period']
         except:
@@ -144,6 +144,10 @@ class ChronoEnv:
             self.visualize = kwargs['visualize']
         except:
             self.visualize = True
+        try:
+            self.model = kwargs['model']
+        except:
+            self.model = 'MB'
         # try:
         #     self.config = kwargs['config']
         # except:
@@ -175,12 +179,12 @@ class ChronoEnv:
             patch_waypoints = None
         veh.SetDataPath(chrono.GetChronoDataPath() + 'vehicle/')
         init_vehicle(self)
+        self.vehicle_params = VehicleParameters(self.my_hmmwv)
         self.my_hmmwv.state = get_vehicle_state(self)
         init_terrain(self, friction, patch_waypoints)
         if self.visualize:
             self.vis = init_irrlicht_vis(self.my_hmmwv)
-        self.vehicle_params = VehicleParameters(self.my_hmmwv)
-        
+
         self.control_step = self.control_period / self.step_size # control step for MPC in sim steps
 
         if (self.constant_friction == False) and (self.visualize == True):
@@ -316,9 +320,16 @@ class ChronoEnv:
         self.toein_RR.append(steering_RR*180/np.pi)
         self.steering_driver.append(self.driver_inputs.m_steering*self.vehicle_params.MAX_STEER*180/np.pi)
 
-        observation = {'poses_x': self.my_hmmwv.state[0],'poses_y': self.my_hmmwv.state[1],
-                       'vx':self.my_hmmwv.state[2], 'poses_theta': self.my_hmmwv.state[3],
-                       'vy':self.my_hmmwv.state[4],'yaw_rate':self.my_hmmwv.state[5],'steering':self.my_hmmwv.state[6]}
+        if self.model == 'ST':
+            observation = {'poses_x':self.my_hmmwv.state[0], 'poses_y':self.my_hmmwv.state[1],
+                        'steering':self.my_hmmwv.state[2], 'v':self.my_hmmwv.state[3],
+                        'yaw_angle':self.my_hmmwv.state[4], 'yaw_rate':self.my_hmmwv.state[5], 
+                        'beta':self.my_hmmwv.state[6], 'state':self.my_hmmwv.state}
+        else:
+            observation = {'poses_x': self.my_hmmwv.state[0],'poses_y': self.my_hmmwv.state[1],
+                        'vx':self.my_hmmwv.state[2], 'poses_theta': self.my_hmmwv.state[3],
+                        'vy':self.my_hmmwv.state[4],'yaw_rate':self.my_hmmwv.state[5],
+                        'steering':self.my_hmmwv.state[6], 'state':self.my_hmmwv.state}
         reward = 0
         done = False
         info = {}

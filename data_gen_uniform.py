@@ -13,9 +13,9 @@ from vehicle_data_gen_utils.utils import Logger
 # from utils.mb_model_params import param1 #This stuff is env.vehicle_params in chorono_env
 from scipy.stats import truncnorm
 
-import pychrono as chrono
-import pychrono.vehicle as veh
-import pychrono.irrlicht as chronoirr
+# import pychrono as chrono
+# import pychrono.vehicle as veh
+# import pychrono.irrlicht as chronoirr
 import numpy as np
 import matplotlib.pyplot as plt
 import yaml
@@ -46,9 +46,6 @@ DENSITY_CURB = 0
 STEERING_PEAK_DENSITY = 2.5
 RENDER = False
 ACC_VS_CONTROL = False
-# SAVE_DIR = '/home/lucerna/Documents/DATA/tuner/' + EXP_NAME + '/'
-# SAVE_DIR = '/workspace/data/tuner/' + EXP_NAME + '/'
-# SAVE_DIR = '/workspace/data/tuner/sim_random_noise/'
 
 # --------------
 # step_size = 2e-3 #simulation step size
@@ -195,20 +192,14 @@ def main():
                     vel = start_vel + np.random.uniform(-VEL_SAMPLE_UP/2, VEL_SAMPLE_UP/2)
                 steer = steers[steering_count]
                 
-                # env.params['tire_p_dy1'] = friction  # mu_y
-                # env.params['tire_p_dx1'] = friction  # mu_x
-                
                 if ACC_VS_CONTROL:
-                    # # steering angle velocity input to steering velocity acceleration input
-                    # v_combined = np.sqrt(obs['x4'][0] ** 2 + obs['x11'][0] ** 2)
-                    # accl, sv = pid(vel, steer, v_combined, obs['x3'][0], param1['sv_max'], param1['a_max'],
-                    #             param1['v_max'], param1['v_min'])
-                    # control = np.array([sv, accl])
                     warnings.warn('ACC_VS_CONTROL is not supported')
                 else:
                     control = np.array([steer, env.speedPID_output])
 
                 print(step_count, 'steer', steer, 'vel', vel)
+                states.append(env.my_hmmwv.state + np.random.normal(scale=NOISE[2], size=env.my_hmmwv.state.shape))
+                controls.append(control)
 
                 # pbar.update(1)
                 step_count += 1
@@ -226,9 +217,9 @@ def main():
                     ## x6 = yaw rate
                     ## x11 = velocity in y-direction
                     # state = np.array([obs['steering'], obs['vx'], obs['yaw_rate'], obs['vy']])
-                    control = np.array([steer, env.speedPID_output])
-                    states.append(env.my_hmmwv.state + np.random.normal(scale=NOISE[2], size=env.my_hmmwv.state.shape))
-                    controls.append(control)
+                    # control = np.array([steer, env.speedPID_output])
+                    # states.append(env.my_hmmwv.state + np.random.normal(scale=NOISE[2], size=env.my_hmmwv.state.shape))
+                    # controls.append(control)
                     # print(control)
                     
                     if step_count % RESET_STEP == 0:

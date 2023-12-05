@@ -1,7 +1,9 @@
 import pychrono as chrono
 import pychrono.vehicle as veh
 import numpy as np
+import math
 from dataclasses import dataclass, field
+from scipy.spatial.transform import Rotation as R
 
 def init_vehicle(self):
     # Create the vehicle system
@@ -81,7 +83,7 @@ def init_terrain(self, friction, reduced_waypoints):
             r.Q_from_AngZ(psi)
             # print('r',r)
             # patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), s*self.patch_scale, 20)
-            patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), distance*self.patch_scale, 20)
+            patch = self.terrain.AddPatch(patch_mat, chrono.ChCoordsysD(chrono.ChVectorD(coords[0], coords[1], coords[2]), r), distance*self.patch_scale, 30)
             patches.append(patch)
 
         # self.viz_patch = self.terrain.AddPatch(patch_mats[2], chrono.CSYSNORM, s, s)
@@ -124,8 +126,6 @@ def get_vehicle_state(self):
     vehicle = self.my_hmmwv
     pos = vehicle.GetVehicle().GetPos()
     power = vehicle.GetVehicle().GetPowertrain().GetOutputTorque()
-    # print("power train torque", power)
-    # print("Vehicle position:", pos)
     x = pos.x
     y = pos.y
     rotation = vehicle.GetVehicle().GetRot()
@@ -184,39 +184,11 @@ def get_vehicle_state(self):
     # Extract the y-component of the velocity
     velocity_y = chassis_velocity.y
 
-    # Print the velocity in the y direction
-    # print("Vehicle velocity in y direction:", velocity_y)
-    
-    # rotation = list(rotation)
-    # steering_angle = vehicle.GetVehicle()
-
     # acc = vehicle.GetVehicle().GetAcc()
     # print("acc", acc)
 
     # get vehicle mass
     # mass = vehicle.GetVehicle().GetMass()
-
-    # Get tire force
-    tf_FL = vehicle.GetVehicle().GetTire(0, veh.LEFT).ReportTireForce(self.terrain)
-    tf_FR = vehicle.GetVehicle().GetTire(0, veh.RIGHT).ReportTireForce(self.terrain)
-    tf_RL = vehicle.GetVehicle().GetTire(1, veh.LEFT).ReportTireForce(self.terrain)
-    tf_RR = vehicle.GetVehicle().GetTire(1, veh.RIGHT).ReportTireForce(self.terrain)
-    # print("   Front left:  ", tf_FL.force.x, " ", tf_FL.force.y, " ", tf_FL.force.z)
-    # print("   Front right: ", tf_FR.force.x, " ", tf_FR.force.y, " ", tf_FR.force.z)
-    # print("   Rear left:   ", tf_RL.force.x, " ", tf_RL.force.y, " ", tf_RL.force.z)
-    # print("   Rear right:  ", tf_RR.force.x, " ", tf_RR.force.y, " ", tf_RR.force.z)
-
-    # get tractive force
-    mu = 0.8
-
-    Fx_left = tf_FL.force.z * mu
-    Fx_right = tf_FR.force.z * mu
-    Rx_left = tf_RL.force.z * mu
-    Rx_right = tf_RR.force.z * mu
-    # print("   Fx_left:  ", Fx_left)
-    # print("   Fx_right: ", Fx_right)
-    # print("   Rx_left:   ", Rx_left)
-    # print("   Rx_right:  ", Rx_right)
 
     # my_driver = veh.ChDriver(vehicle.GetVehicle()) #This command does NOT work. Never use ChDriver!
     # throttle = my_driver.GetThrottle()
@@ -228,10 +200,11 @@ def get_vehicle_state(self):
 
     # steering = (get_steering(self, 0, 0)+get_steering(self, 0, 1))/2 # average of front wheels
 
-
     # driver_glob_location = vehicle.GetVehicle().GetDriverPos()  # global location of the driver
 
-    # vehicle state for single-track model
+    # Get Izz
+    # Izz = vehicle.GetVehicle().GetInertia().Get_A_Zaxis().z
+
     vehicle_state = np.array([x,  # x
                               y,  # y
                               vx,  # vx
@@ -240,9 +213,21 @@ def get_vehicle_state(self):
                               yaw_rate,  # yaw rate
                               steering  # steering angle
                             ])
-    # print("vehicle state:", vehicle_state)
+    
 
-    return vehicle_state
+    vehicle_state_single_track = np.array([x,  # x
+                                           y,  # y
+                                           steering,  # steering angle δ
+                                           math.sqrt(vx**2+vy**2), # v
+                                           yaw_angle,  # yaw angle
+                                           yaw_rate,  # yaw rate
+                                           math.atan(self.vehicle_params.LR/self.vehicle_params.WB*math.tan(steering))  # β-body slip angle
+                                           ])
+    
+    if self.model == 'ST':
+        return vehicle_state_single_track
+    else:
+        return vehicle_state
 
 def get_steering(self, front_rear, right_left): 
     # front_rear: 0 for front, 1 for rear
@@ -254,22 +239,38 @@ def get_steering(self, front_rear, right_left):
 
     return wheel_angle
 
-# def reset_config(self, vehicle_params):
-#     # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
-#     self.config.LENGTH      = vehicle_params.LENGTH
-#     self.config.WIDTH       = vehicle_params.WIDTH
-#     self.config.LR          = vehicle_params.LR
-#     self.config.LF          = vehicle_params.LF
-#     self.config.WB          = vehicle_params.WB
-#     self.config.MIN_STEER   = vehicle_params.MIN_STEER
-#     self.config.MAX_STEER   = vehicle_params.MAX_STEER
-#     self.config.MAX_STEER_V = vehicle_params.MAX_STEER_V
-#     self.config.MAX_SPEED   = vehicle_params.MAX_SPEED
-#     self.config.MIN_SPEED   = vehicle_params.MIN_SPEED
-#     self.config.MAX_ACCEL   = vehicle_params.MAX_ACCEL
-#     self.config.MAX_DECEL   = vehicle_params.MAX_DECEL
-#     self.config.MASS        = vehicle_params.MASS
-#     # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)
+def get_tire_force(self, front_rear, right_left):
+    # front_rear: 0 for front, 1 for rear
+    # right_left: 0 for right, 1 for left
+    vehicle = self.my_hmmwv
+    tf = vehicle.GetVehicle().GetTire(front_rear, right_left).ReportTireForce(self.terrain).force
+    # tf = vehicle.GetVehicle().GetTire(front_rear, right_left).GetTireForce().force
+    print('tire force global', tf)
+    Fz = tf.z
+    tf = np.array([tf.x, tf.y, tf.z]).reshape(3,1)
+
+    # Get tire force in local frame
+    # Any of the following three methods to get SpindleRot_FL are equivalent
+
+    # SpindleRot_FL = vehicle.GetVehicle().GetSpindleRot(front_rear,right_left)
+    # SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
+    # print('SpindleQuat_FL GetSpindleRot', SpindleQuat_FL)
+    # SpindleRot_FL = vehicle.GetVehicle().GetWheel(front_rear, right_left).GetSpindle().GetRot()
+    # SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
+    # print('SpindleQuat_FL GetSpindle().GetRot()', SpindleQuat_FL)
+    SpindleRot_FL = vehicle.GetVehicle().GetWheel(front_rear, right_left).GetState().rot
+    SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
+    print('SpindleQuat_FL GetState().rot', SpindleQuat_FL)
+    SpindleRot_FL = R.from_quat(SpindleQuat_FL).as_matrix()
+    # print('SpindleRot_FL', SpindleRot_FL)
+
+    tf_local = SpindleRot_FL @ tf
+    tf_local = tf_local.reshape(3,)
+
+    # env.my_hmmwv.GetVehicle().GetTire(0,0).GetSlipAngle()
+
+    return Fz, tf_local
+
 
 def reset_config(config, vehicle_params):
     # print("self.config.MASS",self.config.MASS, "self.config.LF",self.config.LF)

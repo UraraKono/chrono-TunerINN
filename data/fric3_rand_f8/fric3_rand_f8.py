@@ -184,7 +184,7 @@ def main():
                 cnt += 1
                 # if cnt == config.test_perm:
                 #     break
-            epoch_info[2:8] /= config.test_perm
+            epoch_info[2:8] /= config.test_perm #これって前のステップでのエラーも残ってない？？epoch_info = np.zeros(8)をwhileの中で最初にやるべきでは？
             logger.log_line(str(epoch) + ' ' + str(epoch_info[2:5]) + ' ' + 'test')
             print(epoch, epoch_info[2:5], 'test')
             
