@@ -115,7 +115,7 @@ def vehicle_dynamics_ks(x, u, C_Sf=20.89, C_Sr=20.89,
 
 # @jax.jit
 def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=20.898, C_Sr=20.898, 
-                        lf=0.88392, lr=1.50876, h=0.59436, m=1225.887, I=1538.853371):
+                        lf=1.913, lr=1.46499, h=0.557, m=2573.138, I=4686.227366647):
     """
     Single Track Dynamic Vehicle Dynamics.
 
@@ -140,8 +140,8 @@ def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=20.898, C_Sr=20.898,
     params = jnp.array(list(param1.values()))
     
     # steering constraints
-    s_min = params[2]  # minimum steering angle [rad]
-    s_max = params[3]  # maximum steering angle [rad]
+    s_min = -0.527613  # minimum steering angle [rad]
+    s_max = 0.527613  # maximum steering angle [rad]
     # longitudinal constraints
     v_min = params[6]  # minimum velocity [m/s]
     v_max = params[7] # minimum velocity [m/s]
@@ -169,6 +169,11 @@ def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=20.898, C_Sr=20.898,
     #     f_ks = vehicle_dynamics_ks(x_ks, u, mu, C_Sf, C_Sr, lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max)
     #     f = jnp.hstack((f_ks, jnp.array([u[1]/lwb*jnp.tan(x[2])+x[3]/(lwb*jnp.cos(x[2])**2)*u[0],
     #     0])))
+
+    # inertia matrix
+    # 1291.3972147297682, -0.6037253539204354, -2.9083720675588487
+    # -0.6037253539205847, 3896.505112170872,  0.07217522339863325
+    # -2.9083720675588487, 0.07217522339863322, 4686.227366647072
 
     # else:
     # system dynamics

@@ -6,9 +6,9 @@ import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
 
-from utils.utils import DataProcessor, ConfigJSON, Logger
-import utils.utils as utils
-import utils.jax_utils as jax_utils
+from vehicle_data_gen_utils.utils import DataProcessor, ConfigJSON, Logger
+import vehicle_data_gen_utils.utils as utils
+import vehicle_data_gen_utils.jax_utils as jax_utils
 import flax.training.train_state as flax_TrainState
 import jax
 import optax
@@ -22,19 +22,19 @@ from numba import njit
 
 
 CUDANUM = 0
-# EXP_NAME = '23_' + str(CUDANUM) + '_' + 'jax_maf_fric3_rand_reduce_size2'
-# EXP_NAME = '24_0_jax_snf_pre_v15_t02_f4_11_4layer'
-# EXP_NAME = '23_0_jax_snf_f5_v18_4layer'
-EXP_NAME = '23_jax_snf_f5_v18_t02_4layer_moresteer2'
+# EXP_NAME = 'map41_f5'
+EXP_NAME = 'st_mppi_f11_v5'
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 os.environ["CUDA_VISIBLE_DEVICES"] = str(CUDANUM)
 
 class Config(ConfigJSON):
     exp_name = EXP_NAME
-    # savedir = '/home/lucerna/Documents/tuner_inn/results/' + EXP_NAME + '/'
-    savedir = '/home/lucerna/MEGA/Reasearch/tuner_inn/tuner_inn/results/' + EXP_NAME + '/'
-    datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand/'
-    test_datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand_test/'
+    # savedir = '/home/lucerna/MEGA/Reasearch/tuner_inn/tuner_inn/results/' + EXP_NAME + '/'
+    # datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand/'
+    # test_datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand_test/'
+    savedir = '/home/tomas/Documents/chrono-TunerINN/data/' + EXP_NAME + '/'
+    datadir = '/home/tomas/Documents/chrono-TunerINN/data/' + EXP_NAME + '/'
+    test_datadir = '/home/tomas/Documents/chrono-TunerINN/data/' + EXP_NAME + '/'
     train_segment = 2
     latent_size = 1
     pe_level = 3

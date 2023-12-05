@@ -19,7 +19,7 @@ import jax.numpy as jnp
 from .mpc import MPC
 import os, sys
 sys.path.append("../")
-from utils.utils import DataProcessor
+from vehicle_data_gen_utils.utils import DataProcessor
 from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
