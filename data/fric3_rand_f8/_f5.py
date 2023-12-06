@@ -35,6 +35,7 @@ c = ConfigJSON()
 all_friction_states = [] # length of flist: concatenate all data set over different speed command with this specific friction in flist
 all_friction_control = []
 selected_colums = [-1, 2, 5, 4] # steering angle, vx, yaw rate, vy. The original file has all the vehicle states, 7 columns
+selected_colums_control = [0,1] # steering angle, vx command
 for ind, friction_ in enumerate(flist):
     total_states = []
     total_controls = []
@@ -47,6 +48,7 @@ for ind, friction_ in enumerate(flist):
         states = np.load(DATADIR + filename)
         states = states[:,:,selected_colums]
         controls = np.load(DATADIR + controls_filename)
+        controls = controls[:,:,selected_colums_control]
         total_states.append(states[:, :])
         total_controls.append(controls[:, :])
 
@@ -64,7 +66,7 @@ for ind, friction_ in enumerate(flist):
         #                       yaw_rate,  # yaw rate
         #                       steering  # steering angle
         #                     ])     
-        # state[-1], state[2], state[5], state[4]         
+     
 ## normalization
 normalization_param = []
 for ind in range(4):
@@ -143,10 +145,10 @@ train_controls_fric = np.array(train_controls_fric)
 train_dynamics_fric = np.array(train_dynamics_fric)
 train_labels_fric = np.array(train_labels_fric)
     
-print('train_states', train_states_fric.shape)
-print('train_controls_fric', train_controls_fric.shape)
-print('train_dynamics_fric', train_dynamics_fric.shape)
-print('train_labels', train_labels_fric.shape)
+print('train_states', train_states_fric.shape) # (1(=# of friction), 33280, 2, 4), 1個飛ばしなら(1, 66560(=320*208), 2, 4)
+print('train_controls_fric', train_controls_fric.shape) # (1, 33280, 2, 2)
+print('train_dynamics_fric', train_dynamics_fric.shape) # (1, 33280, 1, 3)
+print('train_labels', train_labels_fric.shape) # (1, 33280)
 
 
 

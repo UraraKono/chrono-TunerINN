@@ -138,7 +138,10 @@ class InferEnv():
                     return x0 + vehicle_dynamics_st(x0, u) * 0.02
                 x1 = jax.lax.fori_loop(0, int(self.DT/0.02), step_fn, x1)
                 # for _ in range(int(self.DT/0.01)):
+                #     dynamics = vehicle_dynamics_st(x1, u)
+                #     print('before')
                 #     x1 = step_fn(0, x1)
+                #     print('x1', x1)
                 return (x1, 0, x1-x)
             self.update_fn = update_fn
         if mode == 'mb':

@@ -16,17 +16,10 @@ import distrax
 
 
 CUDANUM = 2
-EXP_NAME = '23_' + 'jax_snf_f5_v18_t02_4layer_moresteer'
 EXP_NAME = 'fric3_rand_f8'
 CONTINUE_TRAINING = 0
 class Config():
     exp_name = EXP_NAME
-    # savedir = '/home/lucerna/Documents/DATA/results/' + EXP_NAME + '/'
-    # datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand/'
-    # test_datadir = '/home/lucerna/Documents/DATA/tuner_inn/fric3_rand_test/'
-    # savedir = '/workspace/data/tuner/results2/' + EXP_NAME + '/'
-    # datadir = '/workspace/data/tuner/fric3_rand_acc2_t02/'
-    # test_datadir = '/workspace/data/tuner/fric3_rand_t02/'
     savedir = './data/'+ EXP_NAME + '/'
     datadir = './data/' + EXP_NAME + '/'
     train_segment = 2
@@ -62,7 +55,7 @@ def main():
     arr_train = arr[:int(np.rint(arr.shape[0] * 0.95))]
     arr_test = arr[int(np.rint(arr.shape[0] * 0.95)):]
     train_states = np.asarray(data['train_states'])[0, arr_train, 0, :] #なぜ０？
-    train_controls = np.asarray(data['train_controls'])[0, arr_train, 1, :] # np.asarray(data['train_controls'])は(1,66560,2,2)　なぜ１？
+    train_controls = np.asarray(data['train_controls'])[0, arr_train, 0, :] # np.asarray(data['train_controls'])は(1,66560,2,2)　なぜ１？
     train_dynamics = np.asarray(data['train_dynamics'])[0, arr_train, 0, :]
     print('train_states', train_states.shape) # (63232, 4)
 

@@ -19,7 +19,7 @@ import jax.numpy as jnp
 from .mpc import MPC
 import os, sys
 sys.path.append("../")
-from vehicle_data_gen_utils.utils import DataProcessor
+# from vehicle_data_gen_utils.utils import DataProcessor
 from functools import partial
 import numpy as np
 import matplotlib.pyplot as plt
@@ -182,13 +182,13 @@ class MPPI(MPC):
     
         def rollout_step(env_state, a):
             a = jnp.reshape(a, env.a_shape)
-            # print('env_state', env_state)
+            print('env_state', env_state)
             env_state, env_var, mb_dyna = env.step(env_state, a)
-            # print('env_state2', env_state)
+            print('env_state2', env_state)
             env_var = jax.device_get(env_var)            
-            # r = env.reward(env_state)
+            r = env.reward(env_state)
             r = -env_var
-            # print('r', r)
+            print('r', r)
             return env_state, (env_state, r, mb_dyna)
         if not self.scan:
             # python equivalent of lax.scan

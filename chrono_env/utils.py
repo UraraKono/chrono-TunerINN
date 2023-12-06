@@ -145,6 +145,7 @@ def get_vehicle_state(self):
 
     # Get the linear velocity of the chassis in the global frame
     chassis_velocity = vehicle.GetVehicle().GetChassis().GetBody().GetPos_dt()
+    # print("chassis_velocity global", chassis_velocity)
 
     # Get the rotation matrix of the chassis
     chassis_rot = vehicle.GetVehicle().GetChassis().GetRot()
@@ -180,6 +181,8 @@ def get_vehicle_state(self):
     # Print the velocity in the x direction in the local frame
     # print("Vehicle velocity in x direction (local frame):", velocity_x_local)
     vx = velocity_x_local
+
+    # print("vx", vx, "vy", vy)
 
     # Extract the y-component of the velocity
     velocity_y = chassis_velocity.y
@@ -244,28 +247,52 @@ def get_tire_force(self, front_rear, right_left):
     # right_left: 0 for right, 1 for left
     vehicle = self.my_hmmwv
     tf = vehicle.GetVehicle().GetTire(front_rear, right_left).ReportTireForce(self.terrain).force
-    # tf = vehicle.GetVehicle().GetTire(front_rear, right_left).GetTireForce().force
     print('tire force global', tf)
+    tire_ChFrame = vehicle.GetVehicle().GetTire(front_rear, right_left).GetTransform()
+    tire_ChCoord = chrono.ChCoordsysD(tire_ChFrame.GetPos(), tire_ChFrame.GetRot())
+    # tf = vehicle.GetVehicle().GetTire(front_rear, right_left).ReportTireForceLocal(self.terrain, tire_ChCoord).force # This doesn't work....
+    # tf = vehicle.GetVehicle().GetTire(front_rear, right_left).GetTireForce().force # This doesn't work....
+    # print('tire force local', tf)
     Fz = tf.z
-    tf = np.array([tf.x, tf.y, tf.z]).reshape(3,1)
+    # tf = np.array([tf.x, tf.y, tf.z]).reshape(3,1)
 
     # Get tire force in local frame
-    # Any of the following three methods to get SpindleRot_FL are equivalent
+    # Any of the following 4 methods to get SpindleRot_FL are equivalent
 
-    # SpindleRot_FL = vehicle.GetVehicle().GetSpindleRot(front_rear,right_left)
+    SpindleRot_FL = vehicle.GetVehicle().GetSpindleRot(front_rear,right_left)
     # SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
     # print('SpindleQuat_FL GetSpindleRot', SpindleQuat_FL)
     # SpindleRot_FL = vehicle.GetVehicle().GetWheel(front_rear, right_left).GetSpindle().GetRot()
     # SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
     # print('SpindleQuat_FL GetSpindle().GetRot()', SpindleQuat_FL)
-    SpindleRot_FL = vehicle.GetVehicle().GetWheel(front_rear, right_left).GetState().rot
+    # SpindleRot_FL = vehicle.GetVehicle().GetTire(front_rear, right_left).GetTransform().GetRot()
+    # SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
+    # print('SpindleQuat_FL GetTransform().GetRot()', SpindleQuat_FL)
+    # SpindleRot_FL = vehicle.GetVehicle().GetWheel(front_rear, right_left).GetState().rot.GetNormalized()
+    rot_matrix = chrono.ChMatrix33D(SpindleRot_FL)
+    transpose_rot_matrix = chrono.ChMatrix33D()
+    transpose_rot_matrix[0, 0] = rot_matrix[0, 0]
+    transpose_rot_matrix[1, 0] = rot_matrix[0, 1]
+    transpose_rot_matrix[2, 0] = rot_matrix[0, 2]
+    transpose_rot_matrix[0, 1] = rot_matrix[1, 0]
+    transpose_rot_matrix[1, 1] = rot_matrix[1, 1]
+    transpose_rot_matrix[2, 1] = rot_matrix[1, 2]
+    transpose_rot_matrix[0, 2] = rot_matrix[2, 0]
+    transpose_rot_matrix[1, 2] = rot_matrix[2, 1]
+    transpose_rot_matrix[2, 2] = rot_matrix[2, 2]
+
+    tf_local = transpose_rot_matrix * tf
+    tf_local = np.array([tf_local.x, tf_local.y, tf_local.z])
+    print('tf_local_transpose', tf_local)
+
     SpindleQuat_FL = np.array([SpindleRot_FL.e0, SpindleRot_FL.e1, SpindleRot_FL.e2, SpindleRot_FL.e3])
-    print('SpindleQuat_FL GetState().rot', SpindleQuat_FL)
+    print('SpindleQuat_FL', SpindleQuat_FL)
     SpindleRot_FL = R.from_quat(SpindleQuat_FL).as_matrix()
     # print('SpindleRot_FL', SpindleRot_FL)
-
+    tf = np.array([tf.x, tf.y, tf.z]).reshape(3,1)
     tf_local = SpindleRot_FL @ tf
     tf_local = tf_local.reshape(3,)
+    print('tf_local original', tf_local)
 
     # env.my_hmmwv.GetVehicle().GetTire(0,0).GetSlipAngle()
 

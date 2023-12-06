@@ -21,7 +21,7 @@ else:
     DATADIR = TRAIN_DATADIR + '/'
 TRAIN_SEGMENT = 2
 TIME_INTERVAL = 0.2
-SAVE_NAME = '_f5'
+SAVE_NAME = '_f11'
 
 logger = Logger(DATADIR, SAVE_NAME)
 logger.write_file(__file__)
@@ -29,12 +29,13 @@ logger.write_file(__file__)
 # vlist = np.hstack([np.arange(0, 1, 0.1) + i for i in np.arange(5, 9)])
 vlist = np.arange(8.0, 16.0, 1)
 # flist = [0.5, 0.8, 1.1]
-flist = [0.5]
+flist = [1.1]
 dp = DataProcessor()
 c = ConfigJSON()
 all_friction_states = [] # length of flist: concatenate all data set over different speed command with this specific friction in flist
 all_friction_control = []
 selected_colums = [-1, 2, 5, 4] # steering angle, vx, yaw rate, vy. The original file has all the vehicle states, 7 columns
+selected_colums_control = [0,1] # steering angle, vx command
 for ind, friction_ in enumerate(flist):
     total_states = []
     total_controls = []
@@ -47,6 +48,7 @@ for ind, friction_ in enumerate(flist):
         states = np.load(DATADIR + filename)
         states = states[:,:,selected_colums]
         controls = np.load(DATADIR + controls_filename)
+        controls = controls[:,:,selected_colums_control]
         total_states.append(states[:, :])
         total_controls.append(controls[:, :])
 

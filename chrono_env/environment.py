@@ -323,7 +323,7 @@ class ChronoEnv:
         if self.model == 'ST':
             observation = {'poses_x':self.my_hmmwv.state[0], 'poses_y':self.my_hmmwv.state[1],
                         'steering':self.my_hmmwv.state[2], 'v':self.my_hmmwv.state[3],
-                        'yaw_angle':self.my_hmmwv.state[4], 'yaw_rate':self.my_hmmwv.state[5], 
+                        'poses_theta':self.my_hmmwv.state[4], 'yaw_rate':self.my_hmmwv.state[5], 
                         'beta':self.my_hmmwv.state[6], 'state':self.my_hmmwv.state}
         else:
             observation = {'poses_x': self.my_hmmwv.state[0],'poses_y': self.my_hmmwv.state[1],

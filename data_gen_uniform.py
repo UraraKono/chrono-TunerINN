@@ -131,15 +131,16 @@ def warm_up(env, vel, warm_up_steps, friction):
     return env
 
 
-frictions = [0.5, 1.1]
-# frictions = [0.8]
+frictions = [1.1]
+# frictions = [0.8] #0.5, 1.1
 
 if len(sys.argv) > 1:
     start_vels = float(sys.argv[1])
 else:
     # from 8  to 15 every 0.5
     # start_vels = np.arange(8,15.5,0.5)
-    start_vels = np.arange(10, 16, 1)
+    # start_vels = np.arange(10, 16, 1)
+    start_vels = [9]
 # print('start_vel', start_vel, 'end_vel', start_vel+VEL_SAMPLE_UP)
 print('frictions', frictions)
 
@@ -195,7 +196,7 @@ def main():
                 if ACC_VS_CONTROL:
                     warnings.warn('ACC_VS_CONTROL is not supported')
                 else:
-                    control = np.array([steer, env.speedPID_output])
+                    control = np.array([steer, vel, vel-env.my_hmmwv.state[2],env.speedPID_output]) #The third element is equivalent to acc commandif it's P control
 
                 print(step_count, 'steer', steer, 'vel', vel)
                 states.append(env.my_hmmwv.state + np.random.normal(scale=NOISE[2], size=env.my_hmmwv.state.shape))

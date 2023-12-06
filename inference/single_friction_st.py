@@ -9,18 +9,20 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import jax
 import jax.numpy as jnp
-sys.path.append("../")
+
 # os.environ['F110GYM_PLOT_SCALE'] = str(10.)
 # from planner import PurePursuitPlanner, pid
 # from inference.dynamics_models.mb_model_params import param1
 # from additional_renderers import *
 from jax_mpc.mppi import MPPI
+sys.path.append("../")
 import vehicle_data_gen_utils.jax_utils as jax_utils
 import vehicle_data_gen_utils.utils as utils
 import vehicle_data_gen_utils.frenet_utils as frenet_utils
 from infer_env import InferEnv, JaxInfer
 from chrono_env.environment import ChronoEnv
 from chrono_env.utils import *
+from EGP.regulators.pure_pursuit import *
 
 
 # SIM_TIME_STEP = 0.01
@@ -31,15 +33,16 @@ ACC_VS_CONTROL = False
 # NOISE = [1e-2, 1e-2, 1e-2] # control_vel, control_steering, state 
 NOISE = [0, 0, 0] # control_vel, control_steering, state 
 MB_MPPI = False
-friction_c = 1.1
-# map_ind = 17 # sanpaulo
-map_ind = 41 # duo
+friction_c = 0.5
+map_ind = 17 # sanpaulo
+# map_ind = 41 # duo
 # map_ind = 44 # round
 reduced_rate = 5
 patch_scale = 1.5
 
 n_steps = 10
-n_samples = 128
+# n_samples = 128
+n_samples = 1
 control_sample_trunc = jnp.array([1.0, 1.0])
 state_predictor = 'st'
 scale = 1
@@ -122,30 +125,32 @@ def main():
 
     # initializing the MPPIs
     infer_env_st = InferEnv(waypoints, n_steps, mode=state_predictor, DT=DT) # state predictor that MPPI uses. It has vehicle equations of motion.
+    print('infer_env_st', infer_env_st)
     mppi_st = MPPI(config, n_iterations=1, n_steps=n_steps, n_samples=n_samples, 
                 a_noise=control_sample_trunc, scan=False, mode=state_predictor)
     
     mppi_state_st = mppi_st.init_state(infer_env_st.a_shape, jrng.new_key())
     a_opt_original = mppi_state_st[0].copy()
+    # print('a_opt_original', a_opt_original) # all zeros
 
     
-    # if RENDER: 
-        # map_waypoint_renderer = MapWaypointRenderer(waypoints)
-        # steer_renderer = SteerRenderer(np.zeros((3,)), np.ones((1,)), colorpal.rgb('r'))
-        # acce_renderer = AcceRenderer(np.zeros((3,)), np.ones((1,)))
-        # reference_traj_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('br'), mode='quad')
-        # sampled_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('g'), point_size=2, mode='quad')
-        # sampled_renderer_mb = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('p'), point_size=2, mode='quad')
-        # sampled_renderer_st = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('y'), point_size=2, mode='quad')
-        # opt_traj_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('o'), point_size=5, mode='quad')
-        # # renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, sampled_renderer_mb, opt_traj_renderer]
-        # renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, steer_renderer, acce_renderer, sampled_renderer_mb, sampled_renderer_st, opt_traj_renderer]
-        # # renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, steer_renderer, acce_renderer]
-        # env.add_render_callback(get_render_callback(renderers))
+    if RENDER: 
+        map_waypoint_renderer = MapWaypointRenderer(waypoints)
+        steer_renderer = SteerRenderer(np.zeros((3,)), np.ones((1,)), colorpal.rgb('r'))
+        acce_renderer = AcceRenderer(np.zeros((3,)), np.ones((1,)))
+        reference_traj_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('br'), mode='quad')
+        sampled_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('g'), point_size=2, mode='quad')
+        sampled_renderer_mb = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('p'), point_size=2, mode='quad')
+        sampled_renderer_st = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('y'), point_size=2, mode='quad')
+        opt_traj_renderer = WaypointRenderer(np.zeros((10, 2)), colorpal.rgb('o'), point_size=5, mode='quad')
+        # renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, sampled_renderer_mb, opt_traj_renderer]
+        renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, steer_renderer, acce_renderer, sampled_renderer_mb, sampled_renderer_st, opt_traj_renderer]
+        # renderers = [map_waypoint_renderer, reference_traj_renderer, sampled_renderer, steer_renderer, acce_renderer]
+        env.add_render_callback(get_render_callback(renderers))
 
     laptime = 0
     start = time.time()            
-    test_laptime = 100
+    test_laptime = 200
     
     tracking_errors = []
     prediction_errors = []
@@ -169,15 +174,36 @@ def main():
     if env.model == 'ST':
         obs = {'poses_x':env.my_hmmwv.state[0], 'poses_y':env.my_hmmwv.state[1],
                'steering':env.my_hmmwv.state[2], 'v':env.my_hmmwv.state[3],
-               'yaw_angle':env.my_hmmwv.state[4], 'yaw_rate':env.my_hmmwv.state[5], 
+               'poses_theta':env.my_hmmwv.state[4], 'yaw_rate':env.my_hmmwv.state[5], 
                'beta':env.my_hmmwv.state[6], 'state':env.my_hmmwv.state}
     else:
         obs = {'poses_x':env.my_hmmwv.state[0], 'poses_y':env.my_hmmwv.state[1],
                 'vx':env.my_hmmwv.state[2], 'poses_theta': env.my_hmmwv.state[3],
                 'vy':env.my_hmmwv.state[4],'yaw_rate':env.my_hmmwv.state[5],
                 'steering':env.my_hmmwv.state[6]}
+        
+    ### Warm up the vehicle with pure pursuit###
+    # Init Pure-Pursuit regulator
+    work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 10.6461887897713965, 'vgain': 1.0} # tlad: look ahead distance
+    # work = {'mass': 2573.14, 'lf': 1.8496278, 'tlad': 15, 'vgain': 1.0} # tlad: look ahead distance
+    conf_purepursuit = conf
+    conf_purepursuit.wpt_path = MAP_DIR + conf_purepursuit.wpt_path
+    conf_purepursuit.wpt_xind = 1
+    conf_purepursuit.wpt_yind = 2
+    conf_purepursuit.wpt_vind = -2
+    planner_pp = PurePursuitPlanner(conf_purepursuit, env.vehicle_params.WB)
+    planner_pp.waypoints = waypoints.copy()
 
-    
+    while obs['v'] < 2:
+        # Render scene
+        env.render()
+        planner_pp.waypoints = waypoints.copy()
+        speed, steering = planner_pp.plan(obs['poses_x'], obs['poses_y'], obs['poses_theta'],
+                                        work['tlad'], work['vgain'])
+        print("pure pursuit input speed", speed, "steering angle ratio [-1,1]", steering/env.vehicle_params.MAX_STEER)  
+        obs, _, _, _ = env.step(steering, speed)
+
+    ### MPPI ###
     a_opt = a_opt_original.copy()
     for laptime in range(test_laptime):
         # target_vel = vel + np.random.uniform(-3, 3)
@@ -203,7 +229,7 @@ def main():
         # print("infer_env_st BEFORE", type(infer_env_st), infer_env_st)
         # infer_env_st = jnp.array(infer_env_st)
         # print("infer_env_st AFTER", type(infer_env_st), infer_env_st)
-        reference_traj, ind = infer_env_st.get_refernece_traj(state_st_0.copy(), target_vel, vind=conf.wpt_vind, speed_factor=1.0)
+        reference_traj, ind = infer_env_st.get_refernece_traj(state_st_0.copy(), state_st_0[3], vind=conf.wpt_vind, speed_factor=1.0)
         print('reference_traj', reference_traj)
         print('ind', ind)
         ref_speed.append(waypoints[ind, conf.wpt_vind])
@@ -212,6 +238,8 @@ def main():
         print('a_opt', a_opt)
         control = mppi_state_st[0][0]
         predicted_states = jax.device_get(predicted_states_st[0])
+        print('predicted_states', predicted_states)
+        print('s_opt_st', s_opt_st)
         state_opt = jax.device_get(s_opt_st)
         # if RENDER: sampled_renderer_st.update(np.concatenate(predicted_states[:, :, :2]))
 
@@ -247,7 +275,7 @@ def main():
         
 
         # frenet_pose = frenet_utils.cartesian_to_frenet(np.array([obs['x1'][0], obs['x2'][0], obs['x4'][0]]), waypoints)
-        frenet_pose = frenet_utils.cartesian_to_frenet(np.array([obs['poses_x'], obs['poses_y'], obs['yaw_angle']]), waypoints)
+        frenet_pose = frenet_utils.cartesian_to_frenet(np.array([obs['poses_x'], obs['poses_y'], obs['poses_theta']]), waypoints)
         tracking_error.append(np.abs(frenet_pose[1]))
         error = state_st_1 - state_opt[0]
         error[4] = np.abs(np.sin(state_st_1[4]) - np.sin(state_opt[0][4])) + np.abs(np.cos(state_st_1[4]) - np.cos(state_opt[0][4]))

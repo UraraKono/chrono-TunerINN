@@ -16,8 +16,7 @@ import distrax
 
 
 CUDANUM = 2
-EXP_NAME = '23_' + 'jax_snf_f5_v18_t02_4layer_moresteer'
-EXP_NAME = 'fric3_rand_f8'
+EXP_NAME = 'fric3_rand_f5'
 CONTINUE_TRAINING = 0
 class Config():
     exp_name = EXP_NAME

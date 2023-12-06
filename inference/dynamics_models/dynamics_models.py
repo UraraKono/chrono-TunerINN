@@ -114,7 +114,7 @@ def vehicle_dynamics_ks(x, u, C_Sf=20.89, C_Sr=20.89,
     return f
 
 # @jax.jit
-def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=20.898, C_Sr=20.898, 
+def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=21.813332803, C_Sr=21.813332803, 
                         lf=1.913, lr=1.46499, h=0.557, m=2573.138, I=4686.227366647):
     """
     Single Track Dynamic Vehicle Dynamics.
@@ -177,17 +177,24 @@ def vehicle_dynamics_st(x, u_init, mu=friction, C_Sf=20.898, C_Sr=20.898,
 
     # else:
     # system dynamics
-    f = jnp.array([x[3]*jnp.cos(x[6] + x[4]),
-        x[3]*jnp.sin(x[6] + x[4]),
-        u[0],
-        u[1],
-        x[5],
-        -mu*m/(x[3]*I*(lr+lf))*(lf**2*C_Sf*(g*lr-u[1]*h) + lr**2*C_Sr*(g*lf + u[1]*h))*x[5] \
-            +mu*m/(I*(lr+lf))*(lr*C_Sr*(g*lf + u[1]*h) - lf*C_Sf*(g*lr - u[1]*h))*x[6] \
-            +mu*m/(I*(lr+lf))*lf*C_Sf*(g*lr - u[1]*h)*x[2],
-        (mu/(x[3]**2*(lr+lf))*(C_Sr*(g*lf + u[1]*h)*lr - C_Sf*(g*lr - u[1]*h)*lf)-1)*x[5] \
-            -mu/(x[3]*(lr+lf))*(C_Sr*(g*lf + u[1]*h) + C_Sf*(g*lr-u[1]*h))*x[6] \
-            +mu/(x[3]*(lr+lf))*(C_Sf*(g*lr-u[1]*h))*x[2]])
+    try:
+# [x,y,steering angle, velocity,yaw, yaw_rate, beta]
+        f = jnp.array([x[3]*jnp.cos(x[6] + x[4]),
+            x[3]*jnp.sin(x[6] + x[4]),
+            u[0],
+            u[1],
+            x[5],
+            -mu*m/(x[3]*I*(lr+lf))*(lf**2*C_Sf*(g*lr-u[1]*h) + lr**2*C_Sr*(g*lf + u[1]*h))*x[5] \
+                +mu*m/(I*(lr+lf))*(lr*C_Sr*(g*lf + u[1]*h) - lf*C_Sf*(g*lr - u[1]*h))*x[6] \
+                +mu*m/(I*(lr+lf))*lf*C_Sf*(g*lr - u[1]*h)*x[2],
+            (mu/(x[3]**2*(lr+lf))*(C_Sr*(g*lf + u[1]*h)*lr - C_Sf*(g*lr - u[1]*h)*lf)-1)*x[5] \
+                -mu/(x[3]*(lr+lf))*(C_Sr*(g*lf + u[1]*h) + C_Sf*(g*lr-u[1]*h))*x[6] \
+                +mu/(x[3]*(lr+lf))*(C_Sf*(g*lr-u[1]*h))*x[2]])
+    except:
+        print('x', x)
+        print('u', u)
+        raise ValueError('Error in vehicle dynamics')
+    
 
     return f
 
